@@ -1,6 +1,8 @@
 package constant
 
 const (
-	LogQueryFailed = "query failed"
-	LogQuery       = "query"
+	LogRequestCompleted = "request completed"
+	LogPanicRecovered   = "panic recovered"
+	LogQueryFailed      = "query failed"
+	LogQuery            = "query"
 )
