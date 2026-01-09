@@ -1,5 +1,7 @@
 package constant
 
 const (
-	HeaderRequestID = "X-Request-ID"
+	HeaderAuthorization = "Authorization"
+	BearerScheme        = "Bearer"
+	HeaderRequestID     = "X-Request-ID"
 )
