@@ -6,12 +6,35 @@ import (
 	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/response"
+	"github.com/1tsndre/mini-go-project/store-service/internal/config"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
+	"github.com/redis/go-redis/v9"
 )
 
-func NewRouter(maxBodyBytes int64, requestTimeout time.Duration) http.Handler {
-	mux := http.NewServeMux()
+type middlewareFunc = func(http.Handler) http.Handler
+
+type Handlers struct {
+	Auth *handler.AuthHandler
+}
+
+func NewRouter(
+	handlers Handlers,
+	redisClient *redis.Client,
+	maxBodyBytes int64,
+	requestTimeout time.Duration,
+	rateCfg config.RateConfig,
+) http.Handler {
+	var (
+		mux         = http.NewServeMux()
+		rateLimiter = middleware.NewRateLimiter(redisClient)
+		loginRate   = rateLimiter.Limit(rateCfg.Login, constant.RateLimitKeyLogin)
+		authRate    = rateLimiter.Limit(rateCfg.Auth, constant.RateLimitKeyAuth)
+
+		login   = []middlewareFunc{loginRate}
+		session = []middlewareFunc{authRate}
+	)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		meta := middleware.BuildMeta(r)
@@ -23,6 +46,11 @@ func NewRouter(maxBodyBytes int64, requestTimeout time.Duration) http.Handler {
 	})
 
 	mux.Handle("GET /docs/", http.StripPrefix("/docs/", fileServer("./docs")))
+
+	mux.Handle("POST /api/v1/auth/register", middleware.Chain(http.HandlerFunc(handlers.Auth.Register), login...))
+	mux.Handle("POST /api/v1/auth/login", middleware.Chain(http.HandlerFunc(handlers.Auth.Login), login...))
+	mux.Handle("POST /api/v1/auth/refresh", middleware.Chain(http.HandlerFunc(handlers.Auth.Refresh), session...))
+	mux.Handle("POST /api/v1/auth/logout", middleware.Chain(http.HandlerFunc(handlers.Auth.Logout), session...))
 
 	return middleware.Chain(mux,
 		middleware.RequestID,

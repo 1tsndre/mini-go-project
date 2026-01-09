@@ -8,11 +8,16 @@ import (
 	"os/signal"
 	"syscall"
 
+	pkgjwt "github.com/1tsndre/mini-go-project/pkg/jwt"
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/config"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
+	rediscache "github.com/1tsndre/mini-go-project/store-service/internal/repository/caches/redis"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases/postgres"
 	"github.com/1tsndre/mini-go-project/store-service/internal/router"
+	"github.com/1tsndre/mini-go-project/store-service/internal/service"
 	goredis "github.com/redis/go-redis/v9"
 )
 
@@ -20,6 +25,10 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf(constant.LogConfigLoadFailed, err)
+	}
+
+	if cfg.JWT.Secret == "" || cfg.JWT.Secret == constant.InsecureJWTSecret {
+		log.Fatal(constant.LogWeakJWTSecret)
 	}
 
 	logger.Init(cfg.App.Env)
@@ -42,8 +51,21 @@ func main() {
 	}
 	logger.Info(ctx, constant.LogRedisConnected)
 
+	cache := rediscache.NewRedisCache(redisClient)
+
+	userRepo := repository.NewUserRepository(db)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
+
+	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
+
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtManager)
+
+	handlers := router.Handlers{
+		Auth: handler.NewAuthHandler(authService),
+	}
+
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
-	httpHandler := router.NewRouter(maxBodyBytes, cfg.App.RequestTimeout)
+	httpHandler := router.NewRouter(handlers, redisClient, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.App.Port,
