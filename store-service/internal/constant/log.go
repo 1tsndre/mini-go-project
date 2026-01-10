@@ -33,4 +33,10 @@ const (
 	LogStoreCreateFailed = "failed to create store"
 	LogStoreLoadFailed   = "failed to load store"
 	LogStoreUpdateFailed = "failed to update store"
+
+	LogCategoryCreated      = "category created"
+	LogCategoryCreateFailed = "failed to create category"
+	LogCategoryFetchFailed  = "failed to fetch categories"
+	LogCategoryUpdateFailed = "failed to update category"
+	LogCategoryDeleteFailed = "failed to delete category"
 )

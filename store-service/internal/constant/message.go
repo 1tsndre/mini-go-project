@@ -32,4 +32,13 @@ const (
 	MsgNotStoreOwner     = "forbidden: not store owner"
 	MsgStoreCreateFailed = "failed to create store"
 	MsgStoreUpdateFailed = "failed to update store"
+
+	MsgCategoryDeleted      = "category deleted"
+	MsgCategoryNotFound     = "category not found"
+	MsgCategoryExists       = "category already exists"
+	MsgCategoryInUse        = "category is in use by existing products"
+	MsgCategoryCreateFailed = "failed to create category"
+	MsgCategoryFetchFailed  = "failed to fetch categories"
+	MsgCategoryUpdateFailed = "failed to update category"
+	MsgCategoryDeleteFailed = "failed to delete category"
 )

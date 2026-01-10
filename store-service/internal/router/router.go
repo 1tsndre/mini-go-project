@@ -17,8 +17,9 @@ import (
 type middlewareFunc = func(http.Handler) http.Handler
 
 type Handlers struct {
-	Auth  *handler.AuthHandler
-	Store *handler.StoreHandler
+	Auth     *handler.AuthHandler
+	Store    *handler.StoreHandler
+	Category *handler.CategoryHandler
 }
 
 func NewRouter(
@@ -43,6 +44,7 @@ func NewRouter(
 		loggedIn = []middlewareFunc{auth, authRate}
 		buyer    = []middlewareFunc{auth, middleware.RequireRole(constant.RoleBuyer), authRate}
 		seller   = []middlewareFunc{auth, middleware.RequireRole(constant.RoleSeller), authRate}
+		admin    = []middlewareFunc{auth, middleware.RequireRole(constant.RoleAdmin), authRate}
 	)
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +67,11 @@ func NewRouter(
 	mux.Handle("GET /api/v1/stores/me", middleware.Chain(http.HandlerFunc(handlers.Store.GetMyStore), loggedIn...))
 	mux.Handle("GET /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.GetStore), public...))
 	mux.Handle("PUT /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.UpdateStore), seller...))
+
+	mux.Handle("POST /api/v1/categories", middleware.Chain(http.HandlerFunc(handlers.Category.CreateCategory), admin...))
+	mux.Handle("GET /api/v1/categories", middleware.Chain(http.HandlerFunc(handlers.Category.GetCategories), public...))
+	mux.Handle("PUT /api/v1/categories/{id}", middleware.Chain(http.HandlerFunc(handlers.Category.UpdateCategory), admin...))
+	mux.Handle("DELETE /api/v1/categories/{id}", middleware.Chain(http.HandlerFunc(handlers.Category.DeleteCategory), admin...))
 
 	return middleware.Chain(mux,
 		middleware.RequestID,
