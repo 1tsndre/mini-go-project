@@ -28,4 +28,9 @@ const (
 	LogUserRegistered            = "user registered"
 	LogUserLoggedIn              = "user logged in"
 	LogUserLoggedOut             = "user logged out"
+
+	LogStoreCreated      = "store created"
+	LogStoreCreateFailed = "failed to create store"
+	LogStoreLoadFailed   = "failed to load store"
+	LogStoreUpdateFailed = "failed to update store"
 )

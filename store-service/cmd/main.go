@@ -54,18 +54,21 @@ func main() {
 	cache := rediscache.NewRedisCache(redisClient)
 
 	userRepo := repository.NewUserRepository(db)
+	storeRepo := repository.NewStoreRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtManager)
+	storeService := service.NewStoreService(storeRepo)
 
 	handlers := router.Handlers{
-		Auth: handler.NewAuthHandler(authService),
+		Auth:  handler.NewAuthHandler(authService),
+		Store: handler.NewStoreHandler(storeService),
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
-	httpHandler := router.NewRouter(handlers, redisClient, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
+	httpHandler := router.NewRouter(handlers, jwtManager, redisClient, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.App.Port,

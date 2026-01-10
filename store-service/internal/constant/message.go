@@ -5,7 +5,9 @@ const (
 	MsgRequestTimedOut     = "request timed out"
 	MsgNotFound            = "not found"
 	MsgRateLimitExceeded   = "rate limit exceeded"
+	MsgInvalidUser         = "invalid user"
 	MsgInvalidRequestBody  = "invalid request body"
+	MsgInvalidID           = "invalid %s id"
 
 	MsgIsRequired    = "is required"
 	MsgInvalidEmail  = "invalid email format"
@@ -24,4 +26,10 @@ const (
 	MsgEmailRegistered         = "email already registered"
 	MsgUserCreateFailed        = "failed to create user"
 	MsgLoggedOut               = "logged out"
+
+	MsgStoreNotFound     = "store not found"
+	MsgStoreExists       = "user already has a store"
+	MsgNotStoreOwner     = "forbidden: not store owner"
+	MsgStoreCreateFailed = "failed to create store"
+	MsgStoreUpdateFailed = "failed to update store"
 )
