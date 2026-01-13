@@ -6,6 +6,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/1tsndre/mini-go-project/pkg/response"
+	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
@@ -14,11 +15,12 @@ import (
 )
 
 type StoreHandler struct {
-	service service.StoreService
+	service  service.StoreService
+	uploader *upload.Uploader
 }
 
-func NewStoreHandler(service service.StoreService) *StoreHandler {
-	return &StoreHandler{service: service}
+func NewStoreHandler(service service.StoreService, uploader *upload.Uploader) *StoreHandler {
+	return &StoreHandler{service: service, uploader: uploader}
 }
 
 func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
@@ -124,5 +126,39 @@ func (h *StoreHandler) UpdateStore(w http.ResponseWriter, r *http.Request) {
 		serviceFailure(w, r, err)
 		return
 	}
+	response.Success(w, http.StatusOK, store, middleware.BuildMeta(r))
+}
+
+func (h *StoreHandler) UploadLogo(w http.ResponseWriter, r *http.Request) {
+	userID, err := uuid.Parse(middleware.GetUserID(r.Context()))
+	if err != nil {
+		response.Failure(w, http.StatusUnauthorized, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeUnauthorized, Message: constant.MsgInvalidUser})
+		return
+	}
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		response.Failure(w, http.StatusBadRequest, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: fmt.Sprintf(constant.MsgInvalidID, "store")})
+		return
+	}
+
+	old, err := h.service.GetStoreByID(r.Context(), id)
+	if err != nil {
+		serviceFailure(w, r, err)
+		return
+	}
+
+	path, ok := saveUpload(w, r, h.uploader, "logo", constant.UploadDirStores)
+	if !ok {
+		return
+	}
+
+	store, err := h.service.UpdateLogo(r.Context(), userID, id, path)
+	if err != nil {
+		h.uploader.Delete(path)
+		serviceFailure(w, r, err)
+		return
+	}
+	h.uploader.Delete(old.LogoURL)
 	response.Success(w, http.StatusOK, store, middleware.BuildMeta(r))
 }

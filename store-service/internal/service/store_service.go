@@ -16,6 +16,7 @@ type StoreService interface {
 	GetStoreByID(ctx context.Context, id uuid.UUID) (*model.Store, error)
 	GetStoreByUserID(ctx context.Context, userID uuid.UUID) (*model.Store, error)
 	UpdateStore(ctx context.Context, userID uuid.UUID, id uuid.UUID, req model.StoreRequest) (*model.Store, error)
+	UpdateLogo(ctx context.Context, userID uuid.UUID, id uuid.UUID, logoURL string) (*model.Store, error)
 }
 
 type storeService struct {
@@ -98,6 +99,28 @@ func (s *storeService) UpdateStore(ctx context.Context, userID uuid.UUID, id uui
 	if err := s.storeRepo.Update(ctx, store); err != nil {
 		logger.Error(ctx, constant.LogStoreUpdateFailed, err)
 		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgStoreUpdateFailed}
+	}
+
+	return store, nil
+}
+
+func (s *storeService) UpdateLogo(ctx context.Context, userID uuid.UUID, id uuid.UUID, logoURL string) (*model.Store, error) {
+	store, err := s.storeRepo.FindByID(ctx, id)
+	if errors.Is(err, repository.ErrNotFound) {
+		return nil, &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgStoreNotFound}
+	}
+	if err != nil {
+		logger.Error(ctx, constant.LogStoreLoadFailed, err)
+		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgInternalServerError}
+	}
+	if store.UserID != userID {
+		return nil, &Error{Code: constant.ErrCodeForbidden, Message: constant.MsgNotStoreOwner}
+	}
+
+	store.LogoURL = logoURL
+	if err := s.storeRepo.UpdateLogo(ctx, store); err != nil {
+		logger.Error(ctx, constant.LogStoreLogoUpdateFailed, err)
+		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgStoreLogoUpdateFailed}
 	}
 
 	return store, nil

@@ -17,6 +17,7 @@ const (
 	LogPanicRecovered   = "panic recovered"
 	LogQueryFailed      = "query failed"
 	LogQuery            = "query"
+	LogUploadSaveFailed = "failed to save upload"
 
 	LogPasswordHashFailed        = "failed to hash password"
 	LogUserCreateFailed          = "failed to create user"
@@ -29,10 +30,11 @@ const (
 	LogUserLoggedIn              = "user logged in"
 	LogUserLoggedOut             = "user logged out"
 
-	LogStoreCreated      = "store created"
-	LogStoreCreateFailed = "failed to create store"
-	LogStoreLoadFailed   = "failed to load store"
-	LogStoreUpdateFailed = "failed to update store"
+	LogStoreCreated          = "store created"
+	LogStoreCreateFailed     = "failed to create store"
+	LogStoreLoadFailed       = "failed to load store"
+	LogStoreUpdateFailed     = "failed to update store"
+	LogStoreLogoUpdateFailed = "failed to update store logo"
 
 	LogCategoryCreated      = "category created"
 	LogCategoryCreateFailed = "failed to create category"
@@ -47,4 +49,5 @@ const (
 	LogProductUpdateFailed      = "failed to update product"
 	LogProductStockUpdateFailed = "failed to update product stock"
 	LogProductDeleteFailed      = "failed to delete product"
+	LogProductImageUpdateFailed = "failed to update product image"
 )

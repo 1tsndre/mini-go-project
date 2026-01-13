@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/1tsndre/mini-go-project/pkg/response"
+	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
@@ -17,11 +18,12 @@ import (
 )
 
 type ProductHandler struct {
-	service service.ProductService
+	service  service.ProductService
+	uploader *upload.Uploader
 }
 
-func NewProductHandler(service service.ProductService) *ProductHandler {
-	return &ProductHandler{service: service}
+func NewProductHandler(service service.ProductService, uploader *upload.Uploader) *ProductHandler {
+	return &ProductHandler{service: service, uploader: uploader}
 }
 
 func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
@@ -218,9 +220,50 @@ func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	product, err := h.service.GetProductByID(r.Context(), id)
+	if err != nil {
+		serviceFailure(w, r, err)
+		return
+	}
+
 	if err := h.service.DeleteProduct(r.Context(), userID, id); err != nil {
 		serviceFailure(w, r, err)
 		return
 	}
+	h.uploader.Delete(product.ImageURL)
 	response.Success(w, http.StatusOK, map[string]string{"message": constant.MsgProductDeleted}, middleware.BuildMeta(r))
+}
+
+func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
+	userID, err := uuid.Parse(middleware.GetUserID(r.Context()))
+	if err != nil {
+		response.Failure(w, http.StatusUnauthorized, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeUnauthorized, Message: constant.MsgInvalidUser})
+		return
+	}
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		response.Failure(w, http.StatusBadRequest, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: fmt.Sprintf(constant.MsgInvalidID, "product")})
+		return
+	}
+
+	old, err := h.service.GetProductByID(r.Context(), id)
+	if err != nil {
+		serviceFailure(w, r, err)
+		return
+	}
+
+	path, ok := saveUpload(w, r, h.uploader, "image", constant.UploadDirProducts)
+	if !ok {
+		return
+	}
+
+	product, err := h.service.UpdateImage(r.Context(), userID, id, path)
+	if err != nil {
+		h.uploader.Delete(path)
+		serviceFailure(w, r, err)
+		return
+	}
+	h.uploader.Delete(old.ImageURL)
+	response.Success(w, http.StatusOK, product, middleware.BuildMeta(r))
 }

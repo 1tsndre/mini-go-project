@@ -27,6 +27,7 @@ func NewRouter(
 	handlers Handlers,
 	jwtManager *jwt.JWTManager,
 	redisClient *redis.Client,
+	uploadDir string,
 	maxBodyBytes int64,
 	requestTimeout time.Duration,
 	rateCfg config.RateConfig,
@@ -57,6 +58,7 @@ func NewRouter(
 		response.Failure(w, http.StatusNotFound, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeNotFound, Message: constant.MsgNotFound})
 	})
 
+	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", fileServer(uploadDir)))
 	mux.Handle("GET /docs/", http.StripPrefix("/docs/", fileServer("./docs")))
 
 	mux.Handle("POST /api/v1/auth/register", middleware.Chain(http.HandlerFunc(handlers.Auth.Register), login...))
@@ -68,6 +70,7 @@ func NewRouter(
 	mux.Handle("GET /api/v1/stores/me", middleware.Chain(http.HandlerFunc(handlers.Store.GetMyStore), loggedIn...))
 	mux.Handle("GET /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.GetStore), public...))
 	mux.Handle("PUT /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.UpdateStore), seller...))
+	mux.Handle("POST /api/v1/stores/{id}/logo", middleware.Chain(http.HandlerFunc(handlers.Store.UploadLogo), seller...))
 
 	mux.Handle("POST /api/v1/categories", middleware.Chain(http.HandlerFunc(handlers.Category.CreateCategory), admin...))
 	mux.Handle("GET /api/v1/categories", middleware.Chain(http.HandlerFunc(handlers.Category.GetCategories), public...))
@@ -79,6 +82,7 @@ func NewRouter(
 	mux.Handle("GET /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.GetProduct), public...))
 	mux.Handle("PUT /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.UpdateProduct), seller...))
 	mux.Handle("DELETE /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.DeleteProduct), seller...))
+	mux.Handle("POST /api/v1/products/{id}/image", middleware.Chain(http.HandlerFunc(handlers.Product.UploadImage), seller...))
 
 	return middleware.Chain(mux,
 		middleware.RequestID,

@@ -10,6 +10,7 @@ import (
 
 	pkgjwt "github.com/1tsndre/mini-go-project/pkg/jwt"
 	"github.com/1tsndre/mini-go-project/pkg/logger"
+	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/config"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
@@ -66,15 +67,17 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)
 
+	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)
+
 	handlers := router.Handlers{
 		Auth:     handler.NewAuthHandler(authService),
-		Store:    handler.NewStoreHandler(storeService),
+		Store:    handler.NewStoreHandler(storeService, uploader),
 		Category: handler.NewCategoryHandler(categoryService),
-		Product:  handler.NewProductHandler(productService),
+		Product:  handler.NewProductHandler(productService, uploader),
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
-	httpHandler := router.NewRouter(handlers, jwtManager, redisClient, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
+	httpHandler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.App.Port,

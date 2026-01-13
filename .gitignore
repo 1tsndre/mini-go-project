@@ -27,6 +27,10 @@ go.work.sum
 # env file
 .env
 
+# Uploaded files
+uploads/*/*
+!uploads/*/.gitkeep
+
 # Editor/IDE
 # .idea/
 # .vscode/

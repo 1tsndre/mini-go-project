@@ -7,7 +7,9 @@ const (
 	MsgRateLimitExceeded   = "rate limit exceeded"
 	MsgInvalidUser         = "invalid user"
 	MsgInvalidRequestBody  = "invalid request body"
+	MsgRequestBodyTooLarge = "request body too large"
 	MsgInvalidID           = "invalid %s id"
+	MsgFileRequired        = "%s file is required"
 
 	MsgIsRequired    = "is required"
 	MsgInvalidEmail  = "invalid email format"
@@ -29,12 +31,13 @@ const (
 	MsgUserCreateFailed        = "failed to create user"
 	MsgLoggedOut               = "logged out"
 
-	MsgStoreNotFound        = "store not found"
-	MsgStoreNotFoundForUser = "store not found for this user"
-	MsgStoreExists          = "user already has a store"
-	MsgNotStoreOwner        = "forbidden: not store owner"
-	MsgStoreCreateFailed    = "failed to create store"
-	MsgStoreUpdateFailed    = "failed to update store"
+	MsgStoreNotFound         = "store not found"
+	MsgStoreNotFoundForUser  = "store not found for this user"
+	MsgStoreExists           = "user already has a store"
+	MsgNotStoreOwner         = "forbidden: not store owner"
+	MsgStoreCreateFailed     = "failed to create store"
+	MsgStoreUpdateFailed     = "failed to update store"
+	MsgStoreLogoUpdateFailed = "failed to update store logo"
 
 	MsgCategoryDeleted      = "category deleted"
 	MsgCategoryNotFound     = "category not found"
@@ -59,5 +62,6 @@ const (
 	MsgProductFetchFailed       = "failed to fetch products"
 	MsgProductUpdateFailed      = "failed to update product"
 	MsgProductStockUpdateFailed = "failed to update product stock"
+	MsgProductImageUpdateFailed = "failed to update product image"
 	MsgProductDeleteFailed      = "failed to delete product"
 )

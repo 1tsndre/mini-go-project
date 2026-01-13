@@ -5,10 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/pkg/response"
+	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
 	"github.com/1tsndre/mini-go-project/store-service/internal/service"
@@ -47,4 +50,31 @@ func decodeBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 		return false
 	}
 	return true
+}
+
+func saveUpload(w http.ResponseWriter, r *http.Request, uploader *upload.Uploader, field, dir string) (string, bool) {
+	var maxErr *http.MaxBytesError
+
+	file, header, err := r.FormFile(field)
+	if err != nil {
+		if errors.As(err, &maxErr) {
+			response.Failure(w, http.StatusRequestEntityTooLarge, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: constant.MsgRequestBodyTooLarge})
+		} else {
+			response.Failure(w, http.StatusBadRequest, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: fmt.Sprintf(constant.MsgFileRequired, field)})
+		}
+		return "", false
+	}
+	defer file.Close()
+
+	path, err := uploader.Upload(file, header, dir)
+	if errors.Is(err, upload.ErrInvalidFile) {
+		response.Failure(w, http.StatusBadRequest, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: err.Error()})
+		return "", false
+	}
+	if err != nil {
+		logger.Error(r.Context(), constant.LogUploadSaveFailed, err)
+		response.Failure(w, http.StatusInternalServerError, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeInternal, Message: constant.MsgInternalServerError})
+		return "", false
+	}
+	return path, true
 }

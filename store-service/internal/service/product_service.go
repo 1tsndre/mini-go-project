@@ -19,6 +19,7 @@ type ProductService interface {
 	GetProductByID(ctx context.Context, id uuid.UUID) (*model.Product, error)
 	UpdateProduct(ctx context.Context, userID uuid.UUID, id uuid.UUID, categoryID uuid.UUID, req model.UpdateProductRequest) (*model.Product, error)
 	DeleteProduct(ctx context.Context, userID uuid.UUID, id uuid.UUID) error
+	UpdateImage(ctx context.Context, userID uuid.UUID, id uuid.UUID, imageURL string) (*model.Product, error)
 }
 
 type productService struct {
@@ -211,4 +212,19 @@ func (s *productService) DeleteProduct(ctx context.Context, userID uuid.UUID, id
 		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgProductDeleteFailed}
 	}
 	return nil
+}
+
+func (s *productService) UpdateImage(ctx context.Context, userID uuid.UUID, id uuid.UUID, imageURL string) (*model.Product, error) {
+	product, err := s.findOwned(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+
+	product.ImageURL = imageURL
+	if err := s.productRepo.UpdateImage(ctx, product); err != nil {
+		logger.Error(ctx, constant.LogProductImageUpdateFailed, err)
+		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgProductImageUpdateFailed}
+	}
+
+	return product, nil
 }

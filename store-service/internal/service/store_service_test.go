@@ -281,3 +281,89 @@ func TestStoreService_UpdateStore(t *testing.T) {
 		})
 	}
 }
+
+func TestStoreService_UpdateLogo(t *testing.T) {
+	var (
+		storeID     = uuid.New()
+		ownerID     = uuid.New()
+		otherUserID = uuid.New()
+		logoURL     = "https://example.com/logo.png"
+	)
+
+	tests := []struct {
+		name        string
+		callerID    uuid.UUID
+		mockSetup   func(storeRepo *mocks.MockStoreRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:     "success",
+			callerID: ownerID,
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByID(gomock.Any(), storeID).Return(&model.Store{
+					ID:     storeID,
+					UserID: ownerID,
+				}, nil)
+				storeRepo.EXPECT().UpdateLogo(gomock.Any(), gomock.Any()).Return(nil)
+			},
+		},
+		{
+			name:     "store not found",
+			callerID: ownerID,
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByID(gomock.Any(), storeID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgStoreNotFound,
+		},
+		{
+			name:     "not store owner",
+			callerID: otherUserID,
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByID(gomock.Any(), storeID).Return(&model.Store{
+					ID:     storeID,
+					UserID: ownerID,
+				}, nil)
+			},
+			wantErr:     true,
+			errContains: constant.MsgNotStoreOwner,
+		},
+		{
+			name:     "update fails",
+			callerID: ownerID,
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByID(gomock.Any(), storeID).Return(&model.Store{
+					ID:     storeID,
+					UserID: ownerID,
+				}, nil)
+				storeRepo.EXPECT().UpdateLogo(gomock.Any(), gomock.Any()).Return(errors.New("db error"))
+			},
+			wantErr:     true,
+			errContains: constant.MsgStoreLogoUpdateFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(storeRepo)
+
+			svc := NewStoreService(storeRepo)
+			resp, err := svc.UpdateLogo(context.Background(), tt.callerID, storeID, logoURL)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, resp)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, logoURL, resp.LogoURL)
+		})
+	}
+}
