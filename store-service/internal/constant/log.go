@@ -39,4 +39,12 @@ const (
 	LogCategoryFetchFailed  = "failed to fetch categories"
 	LogCategoryUpdateFailed = "failed to update category"
 	LogCategoryDeleteFailed = "failed to delete category"
+
+	LogProductCreated           = "product created"
+	LogProductCreateFailed      = "failed to create product"
+	LogProductLoadFailed        = "failed to load product"
+	LogProductFetchFailed       = "failed to fetch products"
+	LogProductUpdateFailed      = "failed to update product"
+	LogProductStockUpdateFailed = "failed to update product stock"
+	LogProductDeleteFailed      = "failed to delete product"
 )

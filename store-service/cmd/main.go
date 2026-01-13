@@ -56,6 +56,7 @@ func main() {
 	userRepo := repository.NewUserRepository(db)
 	storeRepo := repository.NewStoreRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
+	productRepo := repository.NewProductRepository(db, cache)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -63,11 +64,13 @@ func main() {
 	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtManager)
 	storeService := service.NewStoreService(storeRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
+	productService := service.NewProductService(productRepo, storeRepo)
 
 	handlers := router.Handlers{
 		Auth:     handler.NewAuthHandler(authService),
 		Store:    handler.NewStoreHandler(storeService),
 		Category: handler.NewCategoryHandler(categoryService),
+		Product:  handler.NewProductHandler(productService),
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead

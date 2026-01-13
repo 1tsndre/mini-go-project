@@ -20,6 +20,7 @@ type Handlers struct {
 	Auth     *handler.AuthHandler
 	Store    *handler.StoreHandler
 	Category *handler.CategoryHandler
+	Product  *handler.ProductHandler
 }
 
 func NewRouter(
@@ -72,6 +73,12 @@ func NewRouter(
 	mux.Handle("GET /api/v1/categories", middleware.Chain(http.HandlerFunc(handlers.Category.GetCategories), public...))
 	mux.Handle("PUT /api/v1/categories/{id}", middleware.Chain(http.HandlerFunc(handlers.Category.UpdateCategory), admin...))
 	mux.Handle("DELETE /api/v1/categories/{id}", middleware.Chain(http.HandlerFunc(handlers.Category.DeleteCategory), admin...))
+
+	mux.Handle("POST /api/v1/products", middleware.Chain(http.HandlerFunc(handlers.Product.CreateProduct), seller...))
+	mux.Handle("GET /api/v1/products", middleware.Chain(http.HandlerFunc(handlers.Product.GetProducts), public...))
+	mux.Handle("GET /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.GetProduct), public...))
+	mux.Handle("PUT /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.UpdateProduct), seller...))
+	mux.Handle("DELETE /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.DeleteProduct), seller...))
 
 	return middleware.Chain(mux,
 		middleware.RequestID,

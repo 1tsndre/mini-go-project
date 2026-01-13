@@ -7,6 +7,9 @@ const (
 
 	MaxDescriptionLength = 5000
 
+	PriceDecimals  = 2
+	MaxPriceLength = 32
+
 	// PostgreSQL rejects the NUL character.
 	EscapedNUL = `\u0000`
 )
