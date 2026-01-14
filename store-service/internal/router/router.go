@@ -21,6 +21,7 @@ type Handlers struct {
 	Store    *handler.StoreHandler
 	Category *handler.CategoryHandler
 	Product  *handler.ProductHandler
+	Cart     *handler.CartHandler
 }
 
 func NewRouter(
@@ -83,6 +84,11 @@ func NewRouter(
 	mux.Handle("PUT /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.UpdateProduct), seller...))
 	mux.Handle("DELETE /api/v1/products/{id}", middleware.Chain(http.HandlerFunc(handlers.Product.DeleteProduct), seller...))
 	mux.Handle("POST /api/v1/products/{id}/image", middleware.Chain(http.HandlerFunc(handlers.Product.UploadImage), seller...))
+
+	mux.Handle("GET /api/v1/cart", middleware.Chain(http.HandlerFunc(handlers.Cart.GetCart), buyer...))
+	mux.Handle("POST /api/v1/cart/items", middleware.Chain(http.HandlerFunc(handlers.Cart.AddItem), buyer...))
+	mux.Handle("PUT /api/v1/cart/items/{product_id}", middleware.Chain(http.HandlerFunc(handlers.Cart.UpdateItem), buyer...))
+	mux.Handle("DELETE /api/v1/cart/items/{product_id}", middleware.Chain(http.HandlerFunc(handlers.Cart.RemoveItem), buyer...))
 
 	return middleware.Chain(mux,
 		middleware.RequestID,

@@ -11,13 +11,14 @@ const (
 	MsgInvalidID           = "invalid %s id"
 	MsgFileRequired        = "%s file is required"
 
-	MsgIsRequired    = "is required"
-	MsgInvalidEmail  = "invalid email format"
-	MsgInvalidUUID   = "must be a valid UUID"
-	MsgInvalidChars  = "contains invalid characters"
-	MsgMinCharacters = "minimum %d characters"
-	MsgMaxCharacters = "maximum %d characters"
-	MsgMaxBytes      = "maximum %d bytes"
+	MsgIsRequired      = "is required"
+	MsgInvalidEmail    = "invalid email format"
+	MsgInvalidUUID     = "must be a valid UUID"
+	MsgInvalidChars    = "contains invalid characters"
+	MsgGreaterThanZero = "must be greater than 0"
+	MsgMinCharacters   = "minimum %d characters"
+	MsgMaxCharacters   = "maximum %d characters"
+	MsgMaxBytes        = "maximum %d bytes"
 
 	MsgMissingAuthHeader       = "missing authorization header"
 	MsgInvalidAuthFormat       = "invalid authorization format"
@@ -64,4 +65,11 @@ const (
 	MsgProductStockUpdateFailed = "failed to update product stock"
 	MsgProductImageUpdateFailed = "failed to update product image"
 	MsgProductDeleteFailed      = "failed to delete product"
+
+	MsgCartItemNotFound  = "item not found in cart"
+	MsgInsufficientStock = "insufficient stock"
+	MsgCartLockFailed    = "failed to acquire cart lock, please try again"
+	MsgCartFetchFailed   = "failed to fetch cart"
+	MsgCartLoadFailed    = "failed to load cart"
+	MsgCartSaveFailed    = "failed to save cart"
 )

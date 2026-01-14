@@ -19,6 +19,8 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases/postgres"
 	"github.com/1tsndre/mini-go-project/store-service/internal/router"
 	"github.com/1tsndre/mini-go-project/store-service/internal/service"
+	"github.com/go-redsync/redsync/v4"
+	redsyncredis "github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	goredis "github.com/redis/go-redis/v9"
 )
 
@@ -52,12 +54,16 @@ func main() {
 	}
 	logger.Info(ctx, constant.LogRedisConnected)
 
+	pool := redsyncredis.NewPool(redisClient)
+	locker := redsync.New(pool)
+
 	cache := rediscache.NewRedisCache(redisClient)
 
 	userRepo := repository.NewUserRepository(db)
 	storeRepo := repository.NewStoreRepository(db)
 	categoryRepo := repository.NewCategoryRepository(db)
 	productRepo := repository.NewProductRepository(db, cache)
+	cartRepo := repository.NewCartRepository(db, cache)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -66,6 +72,7 @@ func main() {
 	storeService := service.NewStoreService(storeRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)
+	cartService := service.NewCartService(cartRepo, productRepo, locker)
 
 	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)
 
@@ -74,6 +81,7 @@ func main() {
 		Store:    handler.NewStoreHandler(storeService, uploader),
 		Category: handler.NewCategoryHandler(categoryService),
 		Product:  handler.NewProductHandler(productService, uploader),
+		Cart:     handler.NewCartHandler(cartService),
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
