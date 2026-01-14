@@ -89,8 +89,7 @@ func (s *productService) GetProducts(ctx context.Context, filter model.ProductFi
 
 	products, total, err := s.productRepo.FindAll(ctx, filter)
 	if err != nil {
-		logger.Error(ctx, "failed to fetch products", err)
-		return nil, 0, errors.New("failed to fetch products")
+		return nil, 0, err
 	}
 
 	var responses []model.ProductResponse
