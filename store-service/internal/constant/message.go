@@ -66,10 +66,16 @@ const (
 	MsgProductImageUpdateFailed = "failed to update product image"
 	MsgProductDeleteFailed      = "failed to delete product"
 
-	MsgCartItemNotFound  = "item not found in cart"
-	MsgInsufficientStock = "insufficient stock"
-	MsgCartLockFailed    = "failed to acquire cart lock, please try again"
-	MsgCartFetchFailed   = "failed to fetch cart"
-	MsgCartLoadFailed    = "failed to load cart"
-	MsgCartSaveFailed    = "failed to save cart"
+	MsgCartEmpty            = "cart is empty"
+	MsgCartItemNotFound     = "item not found in cart"
+	MsgInsufficientStock    = "insufficient stock"
+	MsgInsufficientStockFor = "%w for product %s"
+	MsgCartLockFailed       = "failed to acquire cart lock, please try again"
+	MsgCartFetchFailed      = "failed to fetch cart"
+	MsgCartLoadFailed       = "failed to load cart"
+	MsgCartSaveFailed       = "failed to save cart"
+
+	MsgOrderNotFound    = "order not found"
+	MsgCheckoutFailed   = "failed to process checkout"
+	MsgOrderFetchFailed = "failed to fetch orders"
 )

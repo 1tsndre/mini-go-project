@@ -5,7 +5,8 @@ const (
 	MaxPasswordBytes  = 72  // bcrypt limit
 	MinPasswordLength = 6
 
-	MaxDescriptionLength = 5000
+	MaxDescriptionLength     = 5000
+	MaxShippingAddressLength = 500
 
 	PriceDecimals  = 2
 	MaxPriceLength = 32

@@ -1,0 +1,363 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"testing"
+
+	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
+	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+)
+
+func TestOrderService_Checkout(t *testing.T) {
+	var (
+		userID    = uuid.New()
+		storeA    = uuid.New()
+		storeB    = uuid.New()
+		productA1 = uuid.New()
+		productA2 = uuid.New()
+		productB1 = uuid.New()
+	)
+
+	cart := &model.Cart{
+		UserID: userID,
+		Items: []model.CartItem{
+			{ProductID: productA1, Quantity: 2},
+			{ProductID: productB1, Quantity: 1},
+			{ProductID: productA2, Quantity: 3},
+		},
+	}
+	catalog := map[uuid.UUID]model.Product{
+		productA1: {ID: productA1, StoreID: storeA, Price: decimal.NewFromInt(100)},
+		productA2: {ID: productA2, StoreID: storeA, Price: decimal.NewFromInt(10)},
+		productB1: {ID: productB1, StoreID: storeB, Price: decimal.NewFromInt(50)},
+	}
+
+	// Runs build like the real repository.
+	reserveAll := func(_ context.Context, _ uuid.UUID, build func([]model.CartItem, []model.Product) []*model.Order) ([]*model.Order, error) {
+		reserved := make([]model.Product, 0, len(cart.Items))
+		for _, item := range cart.Items {
+			reserved = append(reserved, catalog[item.ProductID])
+		}
+		orders := build(cart.Items, reserved)
+		for _, o := range orders {
+			o.ID = uuid.New()
+		}
+		return orders, nil
+	}
+
+	tests := []struct {
+		name        string
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository)
+		errContains string
+		wantOrders  int
+	}{
+		{
+			name: "cart is empty",
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository) {
+				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).Return(nil, repository.ErrCartEmpty)
+			},
+			errContains: constant.MsgCartEmpty,
+		},
+		{
+			name: "success - split into one order per store",
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository) {
+				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).DoAndReturn(reserveAll)
+			},
+			wantOrders: 2,
+		},
+		{
+			name: "insufficient stock",
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository) {
+				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).
+					Return(nil, fmt.Errorf("%w for product Laptop", repository.ErrInsufficientStock))
+			},
+			errContains: "insufficient stock for product Laptop",
+		},
+		{
+			name: "database failure",
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository) {
+				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).
+					Return(nil, errors.New("connection reset"))
+			},
+			errContains: constant.MsgCheckoutFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			cartRepo := mocks.NewMockCartRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, cartRepo)
+
+			svc := NewOrderService(orderRepo, cartRepo, storeRepo, nil)
+			resp, err := svc.Checkout(context.Background(), userID, "Jl. Test No. 1, Jakarta")
+
+			if tt.errContains != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, resp)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Len(t, resp, tt.wantOrders)
+		})
+	}
+}
+
+func TestBuildOrdersByStore(t *testing.T) {
+	var (
+		userID = uuid.New()
+		storeA = uuid.New()
+		storeB = uuid.New()
+		items  = []model.CartItem{
+			{ProductID: uuid.New(), Quantity: 2},
+			{ProductID: uuid.New(), Quantity: 1},
+			{ProductID: uuid.New(), Quantity: 3},
+		}
+		reserved = []model.Product{
+			{ID: items[0].ProductID, StoreID: storeA, Price: decimal.NewFromInt(100)},
+			{ID: items[1].ProductID, StoreID: storeB, Price: decimal.NewFromInt(50)},
+			{ID: items[2].ProductID, StoreID: storeA, Price: decimal.NewFromInt(10)},
+		}
+		orders = buildOrdersByStore(userID, "addr", items, reserved)
+	)
+
+	assert.Len(t, orders, 2)
+	assert.Equal(t, storeA, orders[0].StoreID)
+	assert.Len(t, orders[0].OrderItems, 2)
+	assert.True(t, decimal.NewFromInt(230).Equal(orders[0].TotalAmount))
+	assert.Equal(t, storeB, orders[1].StoreID)
+	assert.True(t, decimal.NewFromInt(50).Equal(orders[1].TotalAmount))
+	for _, o := range orders {
+		assert.Equal(t, constant.OrderStatusPending, o.Status)
+		assert.Equal(t, userID, o.UserID)
+		if assert.NotNil(t, o.Payment) {
+			assert.Equal(t, constant.PaymentStatusPending, o.Payment.Status)
+			assert.True(t, o.TotalAmount.Equal(o.Payment.Amount))
+		}
+	}
+}
+
+func TestOrderService_GetOrders(t *testing.T) {
+	userID := uuid.New()
+
+	tests := []struct {
+		name      string
+		page      int
+		perPage   int
+		mockSetup func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository)
+		wantErr   bool
+		wantCount int
+		wantTotal int64
+	}{
+		{
+			name:    "success",
+			page:    1,
+			perPage: 10,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByUserID(gomock.Any(), userID, 1, 10).Return([]model.Order{
+					{ID: uuid.New(), UserID: userID, Status: constant.OrderStatusPending, TotalAmount: decimal.NewFromFloat(50000)},
+					{ID: uuid.New(), UserID: userID, Status: constant.OrderStatusPaid, TotalAmount: decimal.NewFromFloat(100000)},
+				}, int64(2), nil)
+			},
+			wantCount: 2,
+			wantTotal: 2,
+		},
+		{
+			name:    "db error",
+			page:    1,
+			perPage: 10,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByUserID(gomock.Any(), userID, 1, 10).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, storeRepo)
+
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			orders, total, err := svc.GetOrders(context.Background(), userID, tt.page, tt.perPage)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Len(t, orders, tt.wantCount)
+			assert.Equal(t, tt.wantTotal, total)
+		})
+	}
+}
+
+func TestOrderService_GetOrderByID(t *testing.T) {
+	var (
+		ownerID     = uuid.New()
+		otherUserID = uuid.New()
+		orderID     = uuid.New()
+	)
+
+	tests := []struct {
+		name        string
+		callerID    uuid.UUID
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:     "success",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+					Status: constant.OrderStatusPending,
+				}, nil)
+			},
+		},
+		{
+			name:     "order not found",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+		{
+			name:     "different user gets not found",
+			callerID: otherUserID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+				}, nil)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, storeRepo)
+
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			resp, err := svc.GetOrderByID(context.Background(), tt.callerID, orderID)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, resp)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, orderID, resp.ID)
+		})
+	}
+}
+
+func TestOrderService_GetSellerOrders(t *testing.T) {
+	var (
+		userID  = uuid.New()
+		storeID = uuid.New()
+	)
+
+	tests := []struct {
+		name        string
+		page        int
+		perPage     int
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository)
+		wantErr     bool
+		errContains string
+		wantCount   int
+	}{
+		{
+			name:    "success",
+			page:    1,
+			perPage: 10,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{
+					ID:     storeID,
+					UserID: userID,
+				}, nil)
+				orderRepo.EXPECT().FindByStoreID(gomock.Any(), storeID, 1, 10).Return([]model.Order{
+					{ID: uuid.New(), UserID: uuid.New(), Status: constant.OrderStatusPaid},
+				}, int64(1), nil)
+			},
+			wantCount: 1,
+		},
+		{
+			name:    "store not found",
+			page:    1,
+			perPage: 10,
+			mockSetup: func(_ *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgStoreNotFound,
+		},
+		{
+			name:    "db error on orders",
+			page:    1,
+			perPage: 10,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{
+					ID:     storeID,
+					UserID: userID,
+				}, nil)
+				orderRepo.EXPECT().FindByStoreID(gomock.Any(), storeID, 1, 10).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, storeRepo)
+
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			orders, _, err := svc.GetSellerOrders(context.Background(), userID, tt.page, tt.perPage)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errContains != "" {
+					assert.Contains(t, err.Error(), tt.errContains)
+				}
+				return
+			}
+			assert.NoError(t, err)
+			assert.Len(t, orders, tt.wantCount)
+		})
+	}
+}

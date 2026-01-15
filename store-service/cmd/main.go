@@ -64,6 +64,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	productRepo := repository.NewProductRepository(db, cache)
 	cartRepo := repository.NewCartRepository(db, cache)
+	orderRepo := repository.NewOrderRepository(db, cache)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -73,6 +74,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)
 	cartService := service.NewCartService(cartRepo, productRepo, locker)
+	orderService := service.NewOrderService(orderRepo, cartRepo, storeRepo, locker)
 
 	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)
 
@@ -82,6 +84,7 @@ func main() {
 		Category: handler.NewCategoryHandler(categoryService),
 		Product:  handler.NewProductHandler(productService, uploader),
 		Cart:     handler.NewCartHandler(cartService),
+		Order:    handler.NewOrderHandler(orderService),
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead

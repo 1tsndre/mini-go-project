@@ -13,6 +13,9 @@ var (
 	ErrNotFound            = errors.New("record not found")
 	ErrDuplicateKey        = errors.New("duplicate key")
 	ErrForeignKeyViolation = errors.New("foreign key violation")
+
+	ErrCartEmpty         = errors.New("cart is empty")
+	ErrInsufficientStock = errors.New("insufficient stock")
 )
 
 func translateDatabaseError(err error) error {
