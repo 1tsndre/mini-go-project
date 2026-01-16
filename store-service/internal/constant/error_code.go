@@ -10,4 +10,5 @@ const (
 	ErrCodeRateLimited       = "RATE_LIMITED"
 	ErrCodeInsufficientStock = "INSUFFICIENT_STOCK"
 	ErrCodeInvalidStatus     = "INVALID_STATUS"
+	ErrCodeTimeout           = "REQUEST_TIMEOUT"
 )
