@@ -26,6 +26,9 @@ type OrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
 	FindByStoreID(ctx context.Context, storeID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
+	UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
+	// The methods below report false if the order was not in the expected status.
+	CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error)
 }
 
 type orderRepository struct {
@@ -246,4 +249,77 @@ func (r *orderRepository) loadDetails(ctx context.Context, orders []model.Order)
 		byID[payments[i].OrderID].Payment = &payments[i]
 	}
 	return nil
+}
+
+func (r *orderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
+	changed, err := moveStatus(ctx, r.db, id, fromStatus, toStatus)
+	return changed, translateDatabaseError(err)
+}
+
+func (r *orderRepository) CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error) {
+	return r.cancelAndRestock(ctx, id, fromStatus, constant.PaymentStatusCancelled)
+}
+
+func (r *orderRepository) cancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus, pendingPaymentStatus string) (bool, error) {
+	var items []model.OrderItem
+
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	cancelled, err := moveStatus(ctx, tx, id, fromStatus, constant.OrderStatusCancelled)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+	if !cancelled {
+		return false, nil
+	}
+
+	// Same product order as checkout, so the two cannot deadlock.
+	err = tx.SelectContext(ctx, &items,
+		"SELECT "+orderItemColumns+" FROM order_items WHERE order_id = $1 ORDER BY product_id", id)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+
+	for _, item := range items {
+		_, err := tx.ExecContext(ctx,
+			"UPDATE products SET stock = stock + $1, updated_at = NOW() WHERE id = $2",
+			item.Quantity, item.ProductID,
+		)
+		if err != nil {
+			return false, translateDatabaseError(err)
+		}
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE payments
+		SET status = CASE status WHEN $1 THEN $2 ELSE $3 END, updated_at = NOW()
+		WHERE order_id = $4`,
+		constant.PaymentStatusSuccess, constant.PaymentStatusRefunded, pendingPaymentStatus, id,
+	)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, translateDatabaseError(err)
+	}
+
+	for _, item := range items {
+		r.cache.Delete(ctx, fmt.Sprintf(constant.KeyProduct, item.ProductID))
+	}
+	return true, nil
+}
+
+func moveStatus(ctx context.Context, db sqlx.ExecerContext, id uuid.UUID, from, to string) (bool, error) {
+	res, err := db.ExecContext(ctx,
+		"UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 AND status = $3", to, id, from)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }

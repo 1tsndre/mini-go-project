@@ -42,6 +42,21 @@ func (m *MockOrderRepository) EXPECT() *MockOrderRepositoryMockRecorder {
 	return m.recorder
 }
 
+// CancelAndRestock mocks base method.
+func (m *MockOrderRepository) CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CancelAndRestock", ctx, id, fromStatus)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CancelAndRestock indicates an expected call of CancelAndRestock.
+func (mr *MockOrderRepositoryMockRecorder) CancelAndRestock(ctx, id, fromStatus any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelAndRestock", reflect.TypeOf((*MockOrderRepository)(nil).CancelAndRestock), ctx, id, fromStatus)
+}
+
 // CreateOrdersFromCart mocks base method.
 func (m *MockOrderRepository) CreateOrdersFromCart(ctx context.Context, userID uuid.UUID, build func([]model.CartItem, []model.Product) []*model.Order) ([]*model.Order, error) {
 	m.ctrl.T.Helper()
@@ -102,4 +117,19 @@ func (m *MockOrderRepository) FindByUserID(ctx context.Context, userID uuid.UUID
 func (mr *MockOrderRepositoryMockRecorder) FindByUserID(ctx, userID, page, perPage any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByUserID", reflect.TypeOf((*MockOrderRepository)(nil).FindByUserID), ctx, userID, page, perPage)
+}
+
+// UpdateStatusIfCurrent mocks base method.
+func (m *MockOrderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStatusIfCurrent", ctx, id, fromStatus, toStatus)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateStatusIfCurrent indicates an expected call of UpdateStatusIfCurrent.
+func (mr *MockOrderRepositoryMockRecorder) UpdateStatusIfCurrent(ctx, id, fromStatus, toStatus any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusIfCurrent", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatusIfCurrent), ctx, id, fromStatus, toStatus)
 }

@@ -30,6 +30,10 @@ type OrderItem struct {
 	CreatedAt time.Time       `db:"created_at" json:"created_at"`
 }
 
+type UpdateOrderStatusRequest struct {
+	Status string `json:"status"`
+}
+
 type CheckoutRequest struct {
 	ShippingAddress string `json:"shipping_address"`
 }

@@ -56,8 +56,11 @@ const (
 	LogCartLoadFailed  = "failed to load cart"
 	LogCartSaveFailed  = "failed to save cart"
 
-	LogOrderFetchFailed = "failed to fetch orders"
-	LogOrderLoadFailed  = "failed to load order"
+	LogOrderFetchFailed  = "failed to fetch orders"
+	LogOrderLoadFailed   = "failed to load order"
+	LogOrderCancelFailed = "failed to cancel order"
+	LogOrderCancelled    = "order cancelled"
+	LogOrderUpdateFailed = "failed to update order status"
 
 	LogOrdersCreateFailed = "failed to create orders"
 	LogOrdersCreated      = "orders created"

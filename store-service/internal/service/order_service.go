@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
@@ -17,6 +19,8 @@ type OrderService interface {
 	Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) ([]model.OrderResponse, error)
 	GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 	GetOrderByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.OrderResponse, error)
+	CancelOrder(ctx context.Context, userID uuid.UUID, id uuid.UUID) error
+	UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error
 	GetSellerOrders(ctx context.Context, sellerID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 }
 
@@ -140,6 +144,87 @@ func (s *orderService) GetOrderByID(ctx context.Context, userID uuid.UUID, id uu
 
 	resp := order.ToResponse()
 	return &resp, nil
+}
+
+func (s *orderService) CancelOrder(ctx context.Context, userID uuid.UUID, id uuid.UUID) error {
+	order, err := s.orderRepo.FindByID(ctx, id)
+	if errors.Is(err, repository.ErrNotFound) {
+		return &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgOrderNotFound}
+	}
+	if err != nil {
+		logger.Error(ctx, constant.LogOrderLoadFailed, err)
+		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgInternalServerError}
+	}
+
+	// Someone else's order answers 404 too, so order IDs cannot be probed.
+	if order.UserID != userID {
+		return &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgOrderNotFound}
+	}
+
+	if !constant.CancellableStatuses[order.Status] {
+		return &Error{Code: constant.ErrCodeInvalidStatus, Message: fmt.Sprintf(constant.MsgOrderNotCancellable, order.Status)}
+	}
+
+	cancelled, err := s.orderRepo.CancelAndRestock(ctx, id, order.Status)
+	if err != nil {
+		logger.Error(ctx, constant.LogOrderCancelFailed, err, logger.Fields{
+			"order_id": id.String(),
+		})
+		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgOrderCancelFailed}
+	}
+	if !cancelled {
+		return &Error{Code: constant.ErrCodeInvalidStatus, Message: constant.MsgOrderCancelConflict}
+	}
+
+	logger.Info(ctx, constant.LogOrderCancelled, logger.Fields{
+		"order_id": id.String(),
+	})
+
+	return nil
+}
+
+func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error {
+	order, err := s.orderRepo.FindByID(ctx, id)
+	if errors.Is(err, repository.ErrNotFound) {
+		return &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgOrderNotFound}
+	}
+	if err != nil {
+		logger.Error(ctx, constant.LogOrderLoadFailed, err)
+		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgInternalServerError}
+	}
+
+	store, err := s.storeRepo.FindByUserID(ctx, sellerID)
+	if errors.Is(err, repository.ErrNotFound) {
+		return &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgStoreNotFound}
+	}
+	if err != nil {
+		logger.Error(ctx, constant.LogStoreLoadFailed, err)
+		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgInternalServerError}
+	}
+
+	// Another store's order answers 404 too, so order IDs cannot be probed.
+	if order.StoreID != store.ID {
+		return &Error{Code: constant.ErrCodeNotFound, Message: constant.MsgOrderNotFound}
+	}
+
+	allowed, ok := constant.OrderStatusTransitions[order.Status]
+	if !ok {
+		return &Error{Code: constant.ErrCodeInvalidStatus, Message: fmt.Sprintf(constant.MsgOrderNoTransition, order.Status)}
+	}
+
+	if !slices.Contains(allowed, status) {
+		return &Error{Code: constant.ErrCodeInvalidStatus, Message: fmt.Sprintf(constant.MsgOrderInvalidTransition, order.Status, status)}
+	}
+
+	updated, err := s.orderRepo.UpdateStatusIfCurrent(ctx, id, order.Status, status)
+	if err != nil {
+		logger.Error(ctx, constant.LogOrderUpdateFailed, err)
+		return &Error{Code: constant.ErrCodeInternal, Message: constant.MsgOrderUpdateFailed}
+	}
+	if !updated {
+		return &Error{Code: constant.ErrCodeInvalidStatus, Message: constant.MsgOrderUpdateConflict}
+	}
+	return nil
 }
 
 func (s *orderService) GetSellerOrders(ctx context.Context, sellerID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error) {

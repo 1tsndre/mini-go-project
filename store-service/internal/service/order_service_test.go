@@ -282,6 +282,259 @@ func TestOrderService_GetOrderByID(t *testing.T) {
 	}
 }
 
+func TestOrderService_CancelOrder(t *testing.T) {
+	var (
+		ownerID     = uuid.New()
+		otherUserID = uuid.New()
+		orderID     = uuid.New()
+	)
+
+	tests := []struct {
+		name        string
+		callerID    uuid.UUID
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:     "success",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+					Status: constant.OrderStatusPaid,
+				}, nil)
+				orderRepo.EXPECT().CancelAndRestock(gomock.Any(), orderID, constant.OrderStatusPaid).Return(true, nil)
+			},
+		},
+		{
+			name:     "status changed concurrently",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+					Status: constant.OrderStatusProcessing,
+				}, nil)
+				orderRepo.EXPECT().CancelAndRestock(gomock.Any(), orderID, constant.OrderStatusProcessing).Return(false, nil)
+			},
+			wantErr:     true,
+			errContains: "status changed",
+		},
+		{
+			name:     "order not found",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+		{
+			name:     "different user gets not found",
+			callerID: otherUserID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+					Status: constant.OrderStatusPending,
+				}, nil)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+		{
+			name:     "cannot cancel shipped order",
+			callerID: ownerID,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:     orderID,
+					UserID: ownerID,
+					Status: constant.OrderStatusShipped,
+				}, nil)
+			},
+			wantErr:     true,
+			errContains: "cannot cancel order with status",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, storeRepo)
+
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			err := svc.CancelOrder(context.Background(), tt.callerID, orderID)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
+func TestOrderService_UpdateOrderStatus(t *testing.T) {
+	var (
+		orderID   = uuid.New()
+		sellerID  = uuid.New()
+		storeID   = uuid.New()
+		productID = uuid.New()
+	)
+
+	tests := []struct {
+		name        string
+		sellerID    uuid.UUID
+		newStatus   string
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "success - paid to processing",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusProcessing,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusPaid,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPaid, constant.OrderStatusProcessing).Return(true, nil)
+			},
+		},
+		{
+			name:      "success - processing to shipping",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusShipping,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusProcessing,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusProcessing, constant.OrderStatusShipping).Return(true, nil)
+			},
+		},
+		{
+			name:      "status changed concurrently - e.g. buyer cancelled",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusShipping,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusProcessing,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusProcessing, constant.OrderStatusShipping).Return(false, nil)
+			},
+			wantErr:     true,
+			errContains: "status changed",
+		},
+		{
+			name:      "order not found",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusProcessing,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+		{
+			name:      "invalid from status - pending has no valid transition",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusProcessing,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusPending,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+			},
+			wantErr:     true,
+			errContains: "cannot transition from status",
+		},
+		{
+			name:      "invalid to status - paid cannot skip to shipped",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusShipped,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusPaid,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+			},
+			wantErr:     true,
+			errContains: "invalid status transition",
+		},
+		{
+			name:      "store not found",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusProcessing,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:         orderID,
+					Status:     constant.OrderStatusPaid,
+					OrderItems: []model.OrderItem{{ProductID: productID, Quantity: 1}},
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(nil, repository.ErrNotFound)
+			},
+			wantErr:     true,
+			errContains: constant.MsgStoreNotFound,
+		},
+		{
+			name:      "order from another store gets not found",
+			sellerID:  sellerID,
+			newStatus: constant.OrderStatusProcessing,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, storeRepo *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
+					ID:      orderID,
+					StoreID: uuid.New(),
+					Status:  constant.OrderStatusPending,
+				}, nil)
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
+			},
+			wantErr:     true,
+			errContains: constant.MsgOrderNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(orderRepo, storeRepo)
+
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			err := svc.UpdateOrderStatus(context.Background(), tt.sellerID, orderID, tt.newStatus)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			assert.NoError(t, err)
+		})
+	}
+}
+
 func TestOrderService_GetSellerOrders(t *testing.T) {
 	var (
 		userID  = uuid.New()
