@@ -210,6 +210,16 @@
       },
       "type": "object"
     },
+    "CheckoutRequest": {
+      "properties": {
+        "shipping_address": {
+          "description": "Delivery address for the order (required)",
+          "type": "string"
+        }
+      },
+      "required": ["shipping_address"],
+      "type": "object"
+    },
     "Order": {
       "properties": {
         "created_at": {
@@ -226,6 +236,9 @@
         },
         "payment": {
           "$ref": "#/definitions/Payment"
+        },
+        "shipping_address": {
+          "type": "string"
         },
         "status": {
           "type": "string"
@@ -314,12 +327,16 @@
     "RegisterRequest": {
       "properties": {
         "email": {
+          "description": "Must be a valid email address",
+          "format": "email",
           "type": "string"
         },
         "name": {
           "type": "string"
         },
         "password": {
+          "description": "Minimum 6 characters",
+          "minLength": 6,
           "type": "string"
         }
       },
@@ -570,6 +587,27 @@
                 }
               ]
             }
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. JWT generation failure",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
           }
         },
         "summary": "Login user",
@@ -657,6 +695,48 @@
                     }
                   },
                   "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request - missing or invalid request body",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. JWT generation failure",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
                 }
               ]
             }
@@ -855,6 +935,48 @@
                 }
               ]
             }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -923,6 +1045,69 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -1022,6 +1207,69 @@
                 }
               ]
             }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -1095,6 +1343,69 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -1232,6 +1543,48 @@
               ]
             }
           },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict - category name already exists",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -1334,6 +1687,48 @@
                 }
               ]
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -1406,6 +1801,48 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -1528,7 +1965,21 @@
         ]
       },
       "post": {
+        "consumes": [
+          "application/json"
+        ],
         "description": "Create an order from cart items with distributed lock for stock",
+        "parameters": [
+          {
+            "description": "Checkout request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CheckoutRequest"
+            }
+          }
+        ],
         "produces": [
           "application/json"
         ],
@@ -1588,6 +2039,48 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -1744,7 +2237,91 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 order status not cancellable",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 order does not belong to user",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -1846,7 +2423,91 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 invalid or non-allowed status transition",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 seller has no items from their store in this order",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -2142,6 +2803,48 @@
                 }
               ]
             }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -2229,6 +2932,90 @@
                     }
                   },
                   "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden - not product owner",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
                 }
               ]
             }
@@ -2385,7 +3172,91 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 invalid price or category_id format",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 not product owner",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 product or seller store not found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -2526,6 +3397,111 @@
                     }
                   },
                   "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request - invalid product ID or invalid image file",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden - not product owner",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
                 }
               ]
             }
@@ -2694,6 +3670,90 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
@@ -2889,6 +3949,90 @@
                 }
               ]
             }
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict \u2014 user already has a store",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -2951,6 +4095,48 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid store ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
             "schema": {
               "allOf": [
                 {
@@ -3054,6 +4240,111 @@
                 }
               ]
             }
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 not the store owner",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
           }
         },
         "security": [
@@ -3126,6 +4417,111 @@
                 "type": "integer"
               }
             },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid store ID or invalid file",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 not the store owner",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error",
             "schema": {
               "allOf": [
                 {
