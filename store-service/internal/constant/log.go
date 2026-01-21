@@ -51,6 +51,11 @@ const (
 	LogProductDeleteFailed      = "failed to delete product"
 	LogProductImageUpdateFailed = "failed to update product image"
 
+	LogReviewCreated             = "review created"
+	LogReviewPurchaseCheckFailed = "failed to verify purchase"
+	LogReviewCreateFailed        = "failed to create review"
+	LogReviewFetchFailed         = "failed to fetch reviews"
+
 	LogCartLockFailed  = "failed to acquire cart lock"
 	LogCartFetchFailed = "failed to fetch cart"
 	LogCartLoadFailed  = "failed to load cart"

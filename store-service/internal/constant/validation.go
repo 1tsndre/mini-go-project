@@ -6,7 +6,11 @@ const (
 	MinPasswordLength = 6
 
 	MaxDescriptionLength     = 5000
+	MaxCommentLength         = 2000
 	MaxShippingAddressLength = 500
+
+	MinRating = 1
+	MaxRating = 5
 
 	PriceDecimals  = 2
 	MaxPriceLength = 32

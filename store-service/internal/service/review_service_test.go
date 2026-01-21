@@ -1,0 +1,167 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
+	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/mock/gomock"
+)
+
+func TestReviewService_CreateReview(t *testing.T) {
+	var (
+		userID    = uuid.New()
+		productID = uuid.New()
+	)
+
+	tests := []struct {
+		name        string
+		userID      uuid.UUID
+		productID   uuid.UUID
+		req         model.CreateReviewRequest
+		mockSetup   func(repo *mocks.MockReviewRepository)
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name:      "success",
+			userID:    userID,
+			productID: productID,
+			req:       model.CreateReviewRequest{Rating: 5, Comment: "Great product"},
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(true, nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
+			},
+			wantErr: false,
+		},
+		{
+			name:      "user has not purchased product",
+			userID:    userID,
+			productID: productID,
+			req:       model.CreateReviewRequest{Rating: 4, Comment: "Good"},
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(false, nil)
+			},
+			wantErr:     true,
+			errContains: "you must purchase this product",
+		},
+		{
+			name:      "user already reviewed",
+			userID:    userID,
+			productID: productID,
+			req:       model.CreateReviewRequest{Rating: 3, Comment: "Okay"},
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(true, nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repository.ErrDuplicateKey)
+			},
+			wantErr:     true,
+			errContains: "you have already reviewed",
+		},
+		{
+			name:      "create fails",
+			userID:    userID,
+			productID: productID,
+			req:       model.CreateReviewRequest{Rating: 5, Comment: "Great"},
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(true, nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("db error"))
+			},
+			wantErr:     true,
+			errContains: constant.MsgReviewCreateFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			repo := mocks.NewMockReviewRepository(ctrl)
+			tt.mockSetup(repo)
+
+			svc := NewReviewService(repo)
+			resp, err := svc.CreateReview(context.Background(), tt.userID, tt.productID, tt.req)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			assert.NoError(t, err)
+			assert.NotNil(t, resp)
+			assert.Equal(t, tt.req.Rating, resp.Rating)
+		})
+	}
+}
+
+func TestReviewService_GetProductReviews(t *testing.T) {
+	productID := uuid.New()
+
+	tests := []struct {
+		name        string
+		mockSetup   func(repo *mocks.MockReviewRepository)
+		wantErr     bool
+		errContains string
+		wantNames   []string
+		wantTotal   int64
+	}{
+		{
+			name: "success - includes the reviewer's name",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return([]model.Review{
+					{ID: uuid.New(), ProductID: productID, Rating: 5, UserName: "Andi"},
+					{ID: uuid.New(), ProductID: productID, Rating: 3, UserName: "Budi"},
+				}, int64(2), nil)
+			},
+			wantNames: []string{"Andi", "Budi"},
+			wantTotal: 2,
+		},
+		{
+			name: "no reviews - empty list",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return(nil, int64(0), nil)
+			},
+			wantNames: []string{},
+		},
+		{
+			name: "repository fails",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantErr:     true,
+			errContains: constant.MsgReviewFetchFailed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			repo := mocks.NewMockReviewRepository(ctrl)
+			tt.mockSetup(repo)
+
+			resp, total, err := NewReviewService(repo).GetProductReviews(context.Background(), productID, 1, 10)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantTotal, total)
+			assert.NotNil(t, resp, "an empty page is an empty list, not null")
+			names := make([]string, 0, len(resp))
+			for _, r := range resp {
+				names = append(names, r.UserName)
+			}
+			assert.Equal(t, tt.wantNames, names)
+		})
+	}
+}

@@ -19,6 +19,7 @@ const (
 	MsgMinCharacters   = "minimum %d characters"
 	MsgMaxCharacters   = "maximum %d characters"
 	MsgMaxBytes        = "maximum %d bytes"
+	MsgRatingRange     = "must be between 1 and 5"
 
 	MsgMissingAuthHeader       = "missing authorization header"
 	MsgInvalidAuthFormat       = "invalid authorization format"
@@ -87,4 +88,10 @@ const (
 	MsgOrderFetchFailed       = "failed to fetch orders"
 	MsgOrderCancelFailed      = "failed to cancel order"
 	MsgOrderUpdateFailed      = "failed to update order status"
+
+	MsgReviewNotPurchased        = "you must purchase this product before reviewing"
+	MsgReviewExists              = "you have already reviewed this product"
+	MsgReviewPurchaseCheckFailed = "failed to verify purchase"
+	MsgReviewCreateFailed        = "failed to create review"
+	MsgReviewFetchFailed         = "failed to fetch reviews"
 )
