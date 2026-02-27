@@ -217,7 +217,9 @@
           "type": "string"
         }
       },
-      "required": ["shipping_address"],
+      "required": [
+        "shipping_address"
+      ],
       "type": "object"
     },
     "Order": {
@@ -484,6 +486,44 @@
     "version": "1.0"
   },
   "paths": {
+    "/health": {
+      "get": {
+        "description": "Returns service status. Used by load balancers and health probes.",
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "status": {
+                          "example": "ok",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          }
+        },
+        "summary": "Health check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "consumes": [

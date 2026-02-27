@@ -160,6 +160,11 @@ go run store-service/cmd/main.go
 <details>
 <summary>Click to expand</summary>
 
+### Health
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/health` | Service health check | - |
+
 ### Auth
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
