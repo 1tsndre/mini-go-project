@@ -42,6 +42,12 @@ func NewRouter(
 	publicRate := rateLimiter.Limit(rateCfg.Public, time.Minute, constant.RateLimitKeyPublic)
 	authRate := rateLimiter.Limit(rateCfg.Auth, time.Minute, constant.RateLimitKeyAuth)
 
+	// Health check
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
+		meta := middleware.BuildMeta(r)
+		response.Success(w, http.StatusOK, map[string]string{"status": "ok"}, meta)
+	})
+
 	// 404 catch-all for routes not matched by any other pattern
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		meta := middleware.BuildMeta(r)
