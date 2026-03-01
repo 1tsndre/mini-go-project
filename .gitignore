@@ -31,5 +31,6 @@ go.work.sum
 # .idea/
 # .vscode/
 
-# QA test script
+# QA scripts and test artifacts
 qa_test.sh
+qa_testcases.txt
