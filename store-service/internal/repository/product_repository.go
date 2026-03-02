@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
@@ -110,7 +109,7 @@ func (r *productRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.
 		return nil, err
 	}
 
-	r.cache.Set(ctx, cacheKey, product, 15*time.Minute)
+	r.cache.Set(ctx, cacheKey, product, constant.TTLProduct)
 
 	return &product, nil
 }

@@ -74,7 +74,7 @@ func (r *cartRepository) GetCart(ctx context.Context, userID uuid.UUID) (*model.
 		})
 	}
 
-	r.cache.Set(ctx, cacheKey, cart, 0)
+	r.cache.Set(ctx, cacheKey, cart, constant.TTLCart)
 
 	return cart, nil
 }
@@ -105,7 +105,7 @@ func (r *cartRepository) SaveCart(ctx context.Context, cart *model.Cart) error {
 		return err
 	}
 
-	r.cache.Set(ctx, cacheKey, cart, 0)
+	r.cache.Set(ctx, cacheKey, cart, constant.TTLCart)
 	return nil
 }
 
