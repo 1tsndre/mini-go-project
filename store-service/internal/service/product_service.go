@@ -6,6 +6,7 @@ import (
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/pagination"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -80,12 +81,7 @@ func (s *productService) CreateProduct(ctx context.Context, userID uuid.UUID, re
 }
 
 func (s *productService) GetProducts(ctx context.Context, filter model.ProductFilter) ([]model.ProductResponse, int64, error) {
-	if filter.Page <= 0 {
-		filter.Page = 1
-	}
-	if filter.PerPage <= 0 {
-		filter.PerPage = 10
-	}
+	filter.Page, filter.PerPage = pagination.Normalize(filter.Page, filter.PerPage)
 
 	products, total, err := s.productRepo.FindAll(ctx, filter)
 	if err != nil {
@@ -174,7 +170,11 @@ func (s *productService) DeleteProduct(ctx context.Context, userID uuid.UUID, id
 		return errors.New("forbidden: not product owner")
 	}
 
-	return s.productRepo.Delete(ctx, id)
+	if err := s.productRepo.Delete(ctx, id); err != nil {
+		logger.Error(ctx, "failed to delete product", err)
+		return errors.New("failed to delete product")
+	}
+	return nil
 }
 
 func (s *productService) UpdateImage(ctx context.Context, userID uuid.UUID, id uuid.UUID, imageURL string) (*model.ProductResponse, error) {

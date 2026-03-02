@@ -49,7 +49,7 @@ func (s *cartService) lockCart(userID uuid.UUID) (func(), error) {
 func (s *cartService) GetCart(ctx context.Context, userID uuid.UUID) (*model.CartResponse, error) {
 	cart, err := s.cartRepo.GetCart(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, errors.New("failed to fetch cart")
 	}
 	return s.toCartResponse(cart), nil
 }

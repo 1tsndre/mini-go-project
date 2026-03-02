@@ -13,6 +13,7 @@ type StoreRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Store, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID) (*model.Store, error)
 	Update(ctx context.Context, store *model.Store) error
+	Delete(ctx context.Context, id uuid.UUID) error
 }
 
 type storeRepository struct {
@@ -47,4 +48,8 @@ func (r *storeRepository) FindByUserID(ctx context.Context, userID uuid.UUID) (*
 
 func (r *storeRepository) Update(ctx context.Context, store *model.Store) error {
 	return r.db.DB().WithContext(ctx).Save(store).Error
+}
+
+func (r *storeRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	return r.db.DB().WithContext(ctx).Delete(&model.Store{}, "id = ?", id).Error
 }

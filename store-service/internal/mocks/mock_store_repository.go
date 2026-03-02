@@ -42,6 +42,20 @@ func (m *MockStoreRepository) EXPECT() *MockStoreRepositoryMockRecorder {
 	return m.recorder
 }
 
+// Delete mocks base method.
+func (m *MockStoreRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Delete", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// Delete indicates an expected call of Delete.
+func (mr *MockStoreRepositoryMockRecorder) Delete(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Delete", reflect.TypeOf((*MockStoreRepository)(nil).Delete), ctx, id)
+}
+
 // Create mocks base method.
 func (m *MockStoreRepository) Create(ctx context.Context, store *model.Store) error {
 	m.ctrl.T.Helper()
