@@ -15,3 +15,10 @@ var CancellableStatuses = map[string]bool{
 	OrderStatusPaid:       true,
 	OrderStatusProcessing: true,
 }
+
+var OrderStatusTransitions = map[string][]string{
+	OrderStatusPaid:       {OrderStatusProcessing},
+	OrderStatusProcessing: {OrderStatusShipping},
+	OrderStatusShipping:   {OrderStatusShipped},
+	OrderStatusShipped:    {OrderStatusCompleted},
+}

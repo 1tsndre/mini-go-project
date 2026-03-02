@@ -265,19 +265,12 @@ func (s *orderService) CancelOrder(ctx context.Context, userID uuid.UUID, id uui
 }
 
 func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error {
-	validTransitions := map[string][]string{
-		constant.OrderStatusPaid:       {constant.OrderStatusProcessing},
-		constant.OrderStatusProcessing: {constant.OrderStatusShipping},
-		constant.OrderStatusShipping:   {constant.OrderStatusShipped},
-		constant.OrderStatusShipped:    {constant.OrderStatusCompleted},
-	}
-
 	order, err := s.orderRepo.FindByID(ctx, id)
 	if err != nil {
 		return errors.New("order not found")
 	}
 
-	allowed, ok := validTransitions[order.Status]
+	allowed, ok := constant.OrderStatusTransitions[order.Status]
 	if !ok {
 		return fmt.Errorf("cannot transition from status %s", order.Status)
 	}
