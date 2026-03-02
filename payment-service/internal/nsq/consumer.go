@@ -1,10 +1,11 @@
 package nsq
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/1tsndre/mini-go-project/payment-service/internal/service"
+	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/nsqio/go-nsq"
 )
 
@@ -43,7 +44,7 @@ func (c *OrderConsumer) Start(lookupdAddr string) error {
 		return err
 	}
 
-	log.Println("NSQ order consumer started")
+	logger.Info(context.Background(), "NSQ order consumer started")
 	return nil
 }
 
@@ -54,14 +55,16 @@ func (c *OrderConsumer) handleOrderCreated(message *nsq.Message) error {
 		TotalAmount string `json:"total_amount"`
 	}
 
+	ctx := context.Background()
+
 	if err := json.Unmarshal(message.Body, &payload); err != nil {
-		log.Printf("failed to unmarshal order.created, skipping: %v", err)
+		logger.Error(ctx, "failed to unmarshal order.created, skipping", err)
 		return nil
 	}
 
-	log.Printf("processing payment for order %s, amount: %s", payload.OrderID, payload.TotalAmount)
+	logger.Info(ctx, "processing payment", map[string]any{"order_id": payload.OrderID, "amount": payload.TotalAmount})
 
-	result := c.paymentService.ProcessPayment(payload.OrderID, payload.TotalAmount, "mock")
+	result := c.paymentService.ProcessPayment(ctx, payload.OrderID, payload.TotalAmount, "mock")
 
 	response, err := json.Marshal(map[string]string{
 		"order_id":   result.OrderID,
@@ -69,7 +72,7 @@ func (c *OrderConsumer) handleOrderCreated(message *nsq.Message) error {
 		"message":    result.Message,
 	})
 	if err != nil {
-		log.Printf("failed to marshal payment response for order %s, skipping: %v", result.OrderID, err)
+		logger.Error(ctx, "failed to marshal payment response, skipping", err, map[string]any{"order_id": result.OrderID})
 		return nil
 	}
 

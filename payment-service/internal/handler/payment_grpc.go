@@ -17,7 +17,7 @@ func NewPaymentGRPCHandler(svc *service.PaymentService) *PaymentGRPCHandler {
 }
 
 func (h *PaymentGRPCHandler) ProcessPayment(ctx context.Context, req *pb.ProcessPaymentRequest) (*pb.ProcessPaymentResponse, error) {
-	result := h.service.ProcessPayment(req.OrderId, req.Amount, req.Method)
+	result := h.service.ProcessPayment(ctx, req.OrderId, req.Amount, req.Method)
 
 	status := "failed"
 	if result.Success {
