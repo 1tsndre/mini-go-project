@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
@@ -63,6 +64,10 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 	if len(cart.Items) == 0 {
 		return nil, errors.New("cart is empty")
 	}
+
+	sort.Slice(cart.Items, func(i, j int) bool {
+		return cart.Items[i].ProductID.String() < cart.Items[j].ProductID.String()
+	})
 
 	var mutexes []*redsync.Mutex
 	for _, item := range cart.Items {
