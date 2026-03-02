@@ -14,6 +14,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/config"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
+	"github.com/1tsndre/mini-go-project/store-service/internal/nsq"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	rediscache "github.com/1tsndre/mini-go-project/store-service/internal/repository/caches/redis"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases/postgres"
@@ -21,6 +22,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/service"
 	"github.com/go-redsync/redsync/v4"
 	redsyncredis "github.com/go-redsync/redsync/v4/redis/goredis/v9"
+	gonsq "github.com/nsqio/go-nsq"
 	goredis "github.com/redis/go-redis/v9"
 )
 
@@ -57,6 +59,11 @@ func main() {
 	pool := redsyncredis.NewPool(redisClient)
 	locker := redsync.New(pool)
 
+	nsqProducer, err := gonsq.NewProducer(cfg.NSQ.NsqdAddr, gonsq.NewConfig())
+	if err != nil {
+		logger.Fatal(ctx, constant.LogNSQProducerFailed, err)
+	}
+
 	cache := rediscache.NewRedisCache(redisClient)
 
 	userRepo := repository.NewUserRepository(db)
@@ -75,7 +82,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)
 	cartService := service.NewCartService(cartRepo, productRepo, locker)
-	orderService := service.NewOrderService(orderRepo, cartRepo, storeRepo, locker)
+	orderService := service.NewOrderService(orderRepo, cartRepo, storeRepo, locker, nsqProducer)
 	reviewService := service.NewReviewService(reviewRepo)
 
 	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)
@@ -88,6 +95,11 @@ func main() {
 		Cart:     handler.NewCartHandler(cartService),
 		Order:    handler.NewOrderHandler(orderService),
 		Review:   handler.NewReviewHandler(reviewService),
+	}
+
+	paymentConsumer := nsq.NewPaymentResultConsumer(orderService)
+	if err := paymentConsumer.Start(cfg.NSQ.NsqdAddr); err != nil {
+		logger.Fatal(ctx, constant.LogNSQConsumerFailed, err)
 	}
 
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
@@ -124,6 +136,8 @@ func main() {
 		logger.Error(ctx, constant.LogServerForcedShutdown, err)
 	}
 
+	paymentConsumer.Stop()
+	nsqProducer.Stop()
 	redisClient.Close()
 	db.Close()
 

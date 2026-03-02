@@ -119,6 +119,36 @@ func (mr *MockOrderRepositoryMockRecorder) FindByUserID(ctx, userID, page, perPa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByUserID", reflect.TypeOf((*MockOrderRepository)(nil).FindByUserID), ctx, userID, page, perPage)
 }
 
+// MarkPaymentFailed mocks base method.
+func (m *MockOrderRepository) MarkPaymentFailed(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkPaymentFailed", ctx, orderID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkPaymentFailed indicates an expected call of MarkPaymentFailed.
+func (mr *MockOrderRepositoryMockRecorder) MarkPaymentFailed(ctx, orderID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkPaymentFailed", reflect.TypeOf((*MockOrderRepository)(nil).MarkPaymentFailed), ctx, orderID)
+}
+
+// MarkPaymentSucceeded mocks base method.
+func (m *MockOrderRepository) MarkPaymentSucceeded(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkPaymentSucceeded", ctx, orderID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkPaymentSucceeded indicates an expected call of MarkPaymentSucceeded.
+func (mr *MockOrderRepositoryMockRecorder) MarkPaymentSucceeded(ctx, orderID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkPaymentSucceeded", reflect.TypeOf((*MockOrderRepository)(nil).MarkPaymentSucceeded), ctx, orderID)
+}
+
 // UpdateStatusIfCurrent mocks base method.
 func (m *MockOrderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
 	m.ctrl.T.Helper()

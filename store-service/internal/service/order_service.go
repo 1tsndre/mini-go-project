@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
@@ -15,6 +16,10 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type MessagePublisher interface {
+	MultiPublish(topic string, bodies [][]byte) error
+}
+
 type OrderService interface {
 	Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) ([]model.OrderResponse, error)
 	GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
@@ -22,6 +27,7 @@ type OrderService interface {
 	CancelOrder(ctx context.Context, userID uuid.UUID, id uuid.UUID) error
 	UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error
 	GetSellerOrders(ctx context.Context, sellerID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
+	ProcessPaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error
 }
 
 type orderService struct {
@@ -29,6 +35,7 @@ type orderService struct {
 	cartRepo  repository.CartRepository
 	storeRepo repository.StoreRepository
 	locker    *redsync.Redsync
+	publisher MessagePublisher
 }
 
 func NewOrderService(
@@ -36,12 +43,14 @@ func NewOrderService(
 	cartRepo repository.CartRepository,
 	storeRepo repository.StoreRepository,
 	locker *redsync.Redsync,
+	publisher MessagePublisher,
 ) OrderService {
 	return &orderService{
 		orderRepo: orderRepo,
 		cartRepo:  cartRepo,
 		storeRepo: storeRepo,
 		locker:    locker,
+		publisher: publisher,
 	}
 }
 
@@ -64,6 +73,12 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 	}
 	if err != nil {
 		logger.Error(ctx, constant.LogOrdersCreateFailed, err)
+		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgCheckoutFailed}
+	}
+
+	if err := s.publishCreated(orders); err != nil {
+		logger.Error(ctx, constant.LogOrdersPublishFailed, err)
+		s.cancelUnpublished(ctx, userID, orders)
 		return nil, &Error{Code: constant.ErrCodeInternal, Message: constant.MsgCheckoutFailed}
 	}
 
@@ -110,6 +125,42 @@ func buildOrdersByStore(userID uuid.UUID, shippingAddress string, items []model.
 		order.Payment.Amount = order.TotalAmount
 	}
 	return orders
+}
+
+func (s *orderService) publishCreated(orders []*model.Order) error {
+	messages := make([][]byte, 0, len(orders))
+	for _, order := range orders {
+		message, err := order.CreatedMessage()
+		if err != nil {
+			return err
+		}
+		messages = append(messages, message)
+	}
+	return s.publisher.MultiPublish(constant.TopicOrderCreated, messages)
+}
+
+func (s *orderService) cancelUnpublished(ctx context.Context, userID uuid.UUID, orders []*model.Order) {
+	cart := &model.Cart{UserID: userID, UpdatedAt: time.Now()}
+
+	// The request may have timed out; cancel anyway.
+	ctx = context.WithoutCancel(ctx)
+	for _, order := range orders {
+		if _, err := s.orderRepo.CancelAndRestock(ctx, order.ID, constant.OrderStatusPending); err != nil {
+			logger.Error(ctx, constant.LogCancelUnpublishedFailed, err, logger.Fields{
+				"order_id": order.ID.String(),
+			})
+		}
+		for _, item := range order.OrderItems {
+			cart.Items = append(cart.Items, model.CartItem{ProductID: item.ProductID, Quantity: item.Quantity})
+		}
+	}
+
+	// The checkout failed, so the buyer keeps the cart.
+	if err := s.cartRepo.Save(ctx, cart); err != nil {
+		logger.Error(ctx, constant.LogCartGiveBackFailed, err, logger.Fields{
+			"user_id": userID.String(),
+		})
+	}
 }
 
 func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error) {
@@ -249,4 +300,28 @@ func (s *orderService) GetSellerOrders(ctx context.Context, sellerID uuid.UUID, 
 	}
 
 	return responses, total, nil
+}
+
+func (s *orderService) ProcessPaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error {
+	var (
+		fields = logger.Fields{"order_id": orderID.String(), "success": success}
+		mark   = s.orderRepo.MarkPaymentFailed
+	)
+
+	if success {
+		mark = s.orderRepo.MarkPaymentSucceeded
+	}
+
+	changed, err := mark(ctx, orderID)
+	if err != nil {
+		logger.Error(ctx, constant.LogPaymentResultFailed, err, fields)
+		return err
+	}
+	if !changed {
+		logger.Warn(ctx, constant.LogPaymentResultIgnored, fields)
+		return nil
+	}
+
+	logger.Info(ctx, constant.LogPaymentResultApplied, fields)
+	return nil
 }

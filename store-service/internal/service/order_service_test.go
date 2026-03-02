@@ -16,6 +16,21 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+type fakePublisher struct {
+	messages []string
+	err      error
+}
+
+func (f *fakePublisher) MultiPublish(topic string, bodies [][]byte) error {
+	if f.err != nil {
+		return f.err
+	}
+	for _, body := range bodies {
+		f.messages = append(f.messages, topic+" "+string(body))
+	}
+	return nil
+}
+
 func TestOrderService_Checkout(t *testing.T) {
 	var (
 		userID    = uuid.New()
@@ -56,6 +71,7 @@ func TestOrderService_Checkout(t *testing.T) {
 	tests := []struct {
 		name        string
 		mockSetup   func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository)
+		publishErr  error
 		errContains string
 		wantOrders  int
 	}{
@@ -72,6 +88,20 @@ func TestOrderService_Checkout(t *testing.T) {
 				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).DoAndReturn(reserveAll)
 			},
 			wantOrders: 2,
+		},
+		{
+			name: "publish fails - orders are cancelled and the cart is given back",
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository) {
+				orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).DoAndReturn(reserveAll)
+				orderRepo.EXPECT().CancelAndRestock(gomock.Any(), gomock.Any(), constant.OrderStatusPending).Return(true, nil).Times(2)
+				cartRepo.EXPECT().Save(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, saved *model.Cart) error {
+					assert.Equal(t, userID, saved.UserID)
+					assert.Len(t, saved.Items, len(cart.Items))
+					return nil
+				})
+			},
+			publishErr:  errors.New("nsqd down"),
+			errContains: constant.MsgCheckoutFailed,
 		},
 		{
 			name: "insufficient stock",
@@ -101,7 +131,8 @@ func TestOrderService_Checkout(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, cartRepo)
 
-			svc := NewOrderService(orderRepo, cartRepo, storeRepo, nil)
+			publisher := &fakePublisher{err: tt.publishErr}
+			svc := NewOrderService(orderRepo, cartRepo, storeRepo, nil, publisher)
 			resp, err := svc.Checkout(context.Background(), userID, "Jl. Test No. 1, Jakarta")
 
 			if tt.errContains != "" {
@@ -112,6 +143,11 @@ func TestOrderService_Checkout(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Len(t, resp, tt.wantOrders)
+			assert.Len(t, publisher.messages, tt.wantOrders, "one order.created per order")
+			for i, message := range publisher.messages {
+				assert.Contains(t, message, constant.TopicOrderCreated)
+				assert.Contains(t, message, resp[i].ID.String())
+			}
 		})
 	}
 }
@@ -148,6 +184,39 @@ func TestBuildOrdersByStore(t *testing.T) {
 			assert.True(t, o.TotalAmount.Equal(o.Payment.Amount))
 		}
 	}
+}
+
+func TestOrderService_Checkout_CancelsUnpublishedOrdersAfterTimeout(t *testing.T) {
+	var (
+		ctrl      = gomock.NewController(t)
+		userID    = uuid.New()
+		order     = &model.Order{ID: uuid.New()}
+		orderRepo = mocks.NewMockOrderRepository(ctrl)
+		cartRepo  = mocks.NewMockCartRepository(ctrl)
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	orderRepo.EXPECT().CreateOrdersFromCart(gomock.Any(), userID, gomock.Any()).
+		DoAndReturn(func(context.Context, uuid.UUID, func([]model.CartItem, []model.Product) []*model.Order) ([]*model.Order, error) {
+			cancel()
+			return []*model.Order{order}, nil
+		})
+	orderRepo.EXPECT().CancelAndRestock(gomock.Any(), order.ID, constant.OrderStatusPending).
+		DoAndReturn(func(ctx context.Context, _ uuid.UUID, _ string) (bool, error) {
+			assert.NoError(t, ctx.Err())
+			return true, nil
+		})
+	cartRepo.EXPECT().Save(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, _ *model.Cart) error {
+			assert.NoError(t, ctx.Err())
+			return nil
+		})
+
+	svc := NewOrderService(orderRepo, cartRepo, mocks.NewMockStoreRepository(ctrl), nil, &fakePublisher{err: errors.New("nsqd down")})
+	_, err := svc.Checkout(ctx, userID, "Jl. Test 1")
+
+	assert.ErrorContains(t, err, constant.MsgCheckoutFailed)
 }
 
 func TestOrderService_GetOrders(t *testing.T) {
@@ -195,7 +264,7 @@ func TestOrderService_GetOrders(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, storeRepo)
 
-			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil, nil)
 			orders, total, err := svc.GetOrders(context.Background(), userID, tt.page, tt.perPage)
 
 			if tt.wantErr {
@@ -266,7 +335,7 @@ func TestOrderService_GetOrderByID(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, storeRepo)
 
-			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil, nil)
 			resp, err := svc.GetOrderByID(context.Background(), tt.callerID, orderID)
 
 			if tt.wantErr {
@@ -368,7 +437,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, storeRepo)
 
-			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil, nil)
 			err := svc.CancelOrder(context.Background(), tt.callerID, orderID)
 
 			if tt.wantErr {
@@ -522,7 +591,7 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, storeRepo)
 
-			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil, nil)
 			err := svc.UpdateOrderStatus(context.Background(), tt.sellerID, orderID, tt.newStatus)
 
 			if tt.wantErr {
@@ -599,7 +668,7 @@ func TestOrderService_GetSellerOrders(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, storeRepo)
 
-			svc := NewOrderService(orderRepo, nil, storeRepo, nil)
+			svc := NewOrderService(orderRepo, nil, storeRepo, nil, nil)
 			orders, _, err := svc.GetSellerOrders(context.Background(), userID, tt.page, tt.perPage)
 
 			if tt.wantErr {
@@ -611,6 +680,81 @@ func TestOrderService_GetSellerOrders(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Len(t, orders, tt.wantCount)
+		})
+	}
+}
+
+func TestOrderService_ProcessPaymentResult(t *testing.T) {
+	orderID := uuid.New()
+
+	tests := []struct {
+		name      string
+		success   bool
+		mockSetup func(orderRepo *mocks.MockOrderRepository)
+		wantErr   bool
+	}{
+		{
+			name:    "payment success marks order paid",
+			success: true,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentSucceeded(gomock.Any(), orderID).Return(true, nil)
+			},
+		},
+		{
+			name:    "payment success for non-pending order is ignored",
+			success: true,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentSucceeded(gomock.Any(), orderID).Return(false, nil)
+			},
+		},
+		{
+			name:    "payment success - database error is returned for requeue",
+			success: true,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentSucceeded(gomock.Any(), orderID).Return(false, errors.New("db down"))
+			},
+			wantErr: true,
+		},
+		{
+			name:    "payment failed cancels and restocks",
+			success: false,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentFailed(gomock.Any(), orderID).Return(true, nil)
+			},
+		},
+		{
+			name:    "payment failed for non-pending order is ignored",
+			success: false,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentFailed(gomock.Any(), orderID).Return(false, nil)
+			},
+		},
+		{
+			name:    "payment failed - database error is returned for requeue",
+			success: false,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository) {
+				orderRepo.EXPECT().MarkPaymentFailed(gomock.Any(), orderID).Return(false, errors.New("db down"))
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			orderRepo := mocks.NewMockOrderRepository(ctrl)
+			tt.mockSetup(orderRepo)
+
+			svc := NewOrderService(orderRepo, mocks.NewMockCartRepository(ctrl), mocks.NewMockStoreRepository(ctrl), nil, nil)
+			err := svc.ProcessPaymentResult(context.Background(), orderID, tt.success)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
 		})
 	}
 }

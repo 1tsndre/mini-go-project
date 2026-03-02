@@ -29,6 +29,8 @@ type OrderRepository interface {
 	UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
 	// The methods below report false if the order was not in the expected status.
 	CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error)
+	MarkPaymentSucceeded(ctx context.Context, orderID uuid.UUID) (bool, error)
+	MarkPaymentFailed(ctx context.Context, orderID uuid.UUID) (bool, error)
 }
 
 type orderRepository struct {
@@ -260,6 +262,10 @@ func (r *orderRepository) CancelAndRestock(ctx context.Context, id uuid.UUID, fr
 	return r.cancelAndRestock(ctx, id, fromStatus, constant.PaymentStatusCancelled)
 }
 
+func (r *orderRepository) MarkPaymentFailed(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	return r.cancelAndRestock(ctx, orderID, constant.OrderStatusPending, constant.PaymentStatusFailed)
+}
+
 func (r *orderRepository) cancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus, pendingPaymentStatus string) (bool, error) {
 	var items []model.OrderItem
 
@@ -310,6 +316,37 @@ func (r *orderRepository) cancelAndRestock(ctx context.Context, id uuid.UUID, fr
 
 	for _, item := range items {
 		r.cache.Delete(ctx, fmt.Sprintf(constant.KeyProduct, item.ProductID))
+	}
+	return true, nil
+}
+
+func (r *orderRepository) MarkPaymentSucceeded(ctx context.Context, orderID uuid.UUID) (bool, error) {
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+	defer tx.Rollback() // no-op after Commit
+
+	paid, err := moveStatus(ctx, tx, orderID, constant.OrderStatusPending, constant.OrderStatusPaid)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+	if !paid {
+		return false, nil
+	}
+
+	_, err = tx.ExecContext(ctx, `
+		UPDATE payments
+		SET status = $1, paid_at = NOW(), updated_at = NOW()
+		WHERE order_id = $2 AND status = $3`,
+		constant.PaymentStatusSuccess, orderID, constant.PaymentStatusPending,
+	)
+	if err != nil {
+		return false, translateDatabaseError(err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, translateDatabaseError(err)
 	}
 	return true, nil
 }

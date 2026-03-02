@@ -7,6 +7,8 @@ const (
 	LogDBConnected          = "connected to database"
 	LogRedisConnectFailed   = "failed to connect to redis"
 	LogRedisConnected       = "connected to redis"
+	LogNSQProducerFailed    = "failed to create NSQ producer"
+	LogNSQConsumerFailed    = "failed to start NSQ consumer"
 	LogServerStarting       = "server starting"
 	LogServerFailed         = "server failed"
 	LogServerShuttingDown   = "shutting down server..."
@@ -18,6 +20,11 @@ const (
 	LogQueryFailed      = "query failed"
 	LogQuery            = "query"
 	LogUploadSaveFailed = "failed to save upload"
+
+	LogConsumersStarted             = "NSQ payment result consumers started"
+	LogConsumersStopped             = "NSQ payment result consumers stopped"
+	LogPaymentResultUnmarshalFailed = "failed to unmarshal payment result, skipping"
+	LogPaymentResultInvalidOrderID  = "invalid order_id in payment result, skipping"
 
 	LogPasswordHashFailed        = "failed to hash password"
 	LogUserCreateFailed          = "failed to create user"
@@ -67,6 +74,12 @@ const (
 	LogOrderCancelled    = "order cancelled"
 	LogOrderUpdateFailed = "failed to update order status"
 
-	LogOrdersCreateFailed = "failed to create orders"
-	LogOrdersCreated      = "orders created"
+	LogOrdersCreateFailed      = "failed to create orders"
+	LogOrdersPublishFailed     = "failed to publish order.created, cancelling the orders"
+	LogOrdersCreated           = "orders created"
+	LogCancelUnpublishedFailed = "failed to cancel unpublished order"
+	LogCartGiveBackFailed      = "failed to give the cart back"
+	LogPaymentResultFailed     = "failed to apply payment result"
+	LogPaymentResultIgnored    = "ignoring payment result for non-pending order"
+	LogPaymentResultApplied    = "payment result applied"
 )
