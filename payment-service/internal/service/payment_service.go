@@ -1,9 +1,11 @@
 package service
 
 import (
-	"log"
+	"context"
 	"math/rand"
 	"time"
+
+	"github.com/1tsndre/mini-go-project/pkg/logger"
 )
 
 type PaymentResult struct {
@@ -19,7 +21,7 @@ func NewPaymentService() *PaymentService {
 	return &PaymentService{}
 }
 
-func (s *PaymentService) ProcessPayment(orderID, amount, method string) *PaymentResult {
+func (s *PaymentService) ProcessPayment(ctx context.Context, orderID, amount, method string) *PaymentResult {
 	time.Sleep(time.Duration(500+rand.Intn(1500)) * time.Millisecond)
 
 	// Mock: 90% success rate
@@ -37,10 +39,10 @@ func (s *PaymentService) ProcessPayment(orderID, amount, method string) *Payment
 
 	if success {
 		result.Message = "payment processed successfully"
-		log.Printf("payment success for order %s, amount: %s", orderID, amount)
+		logger.Info(ctx, "payment processed successfully", map[string]any{"order_id": orderID, "amount": amount})
 	} else {
 		result.Message = "payment declined"
-		log.Printf("payment failed for order %s, amount: %s", orderID, amount)
+		logger.Warn(ctx, "payment declined", map[string]any{"order_id": orderID, "amount": amount})
 	}
 
 	return result
