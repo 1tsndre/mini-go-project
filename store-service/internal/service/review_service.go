@@ -66,7 +66,7 @@ func (s *reviewService) GetProductReviews(ctx context.Context, productID uuid.UU
 
 	reviews, total, err := s.repo.FindByProductID(ctx, productID, page, perPage)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, errors.New("failed to fetch reviews")
 	}
 
 	var responses []model.ReviewResponse

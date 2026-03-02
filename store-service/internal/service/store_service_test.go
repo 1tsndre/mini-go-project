@@ -61,6 +61,7 @@ func TestStoreService_CreateStore(t *testing.T) {
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, errors.New("not found"))
 				storeRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(nil)
 				userRepo.EXPECT().UpdateRole(gomock.Any(), userID, constant.RoleSeller).Return(errors.New("db error"))
+				storeRepo.EXPECT().Delete(gomock.Any(), gomock.Any()).Return(nil)
 			},
 			wantErr:     true,
 			errContains: "failed to create store",

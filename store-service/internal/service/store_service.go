@@ -48,6 +48,11 @@ func (s *storeService) CreateStore(ctx context.Context, userID uuid.UUID, req mo
 	}
 
 	if err := s.userRepo.UpdateRole(ctx, userID, constant.RoleSeller); err != nil {
+		if rbErr := s.storeRepo.Delete(ctx, store.ID); rbErr != nil {
+			logger.Error(ctx, "failed to rollback store after role update failure", rbErr, map[string]interface{}{
+				"store_id": store.ID.String(),
+			})
+		}
 		logger.Error(ctx, "failed to update user role", err)
 		return nil, errors.New("failed to create store")
 	}

@@ -186,7 +186,7 @@ func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, pe
 
 	orders, total, err := s.orderRepo.FindByUserID(ctx, userID, page, perPage)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, errors.New("failed to fetch orders")
 	}
 
 	var responses []model.OrderResponse
@@ -323,7 +323,7 @@ func (s *orderService) GetSellerOrders(ctx context.Context, userID uuid.UUID, pa
 
 	orders, total, err := s.orderRepo.FindByStoreID(ctx, store.ID, page, perPage)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, errors.New("failed to fetch orders")
 	}
 
 	var responses []model.OrderResponse
