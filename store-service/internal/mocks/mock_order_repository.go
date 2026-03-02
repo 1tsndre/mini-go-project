@@ -16,7 +16,6 @@ import (
 	model "github.com/1tsndre/mini-go-project/store-service/internal/model"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
-	gorm "gorm.io/gorm"
 )
 
 // MockOrderRepository is a mock of OrderRepository interface.
@@ -161,16 +160,3 @@ func (mr *MockOrderRepositoryMockRecorder) UpdateStatus(ctx, id, status any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatus), ctx, id, status)
 }
 
-// WithTx mocks base method.
-func (m *MockOrderRepository) WithTx(ctx context.Context, fn func(*gorm.DB) error) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "WithTx", ctx, fn)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// WithTx indicates an expected call of WithTx.
-func (mr *MockOrderRepositoryMockRecorder) WithTx(ctx, fn any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WithTx", reflect.TypeOf((*MockOrderRepository)(nil).WithTx), ctx, fn)
-}

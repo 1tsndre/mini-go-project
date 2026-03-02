@@ -6,7 +6,6 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type OrderRepository interface {
@@ -18,7 +17,6 @@ type OrderRepository interface {
 	CreatePayment(ctx context.Context, payment *model.Payment) error
 	UpdatePayment(ctx context.Context, payment *model.Payment) error
 	FindPaymentByOrderID(ctx context.Context, orderID uuid.UUID) (*model.Payment, error)
-	WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error
 }
 
 type orderRepository struct {
@@ -124,6 +122,3 @@ func (r *orderRepository) FindPaymentByOrderID(ctx context.Context, orderID uuid
 	return &payment, nil
 }
 
-func (r *orderRepository) WithTx(ctx context.Context, fn func(tx *gorm.DB) error) error {
-	return r.db.DB().WithContext(ctx).Transaction(fn)
-}
