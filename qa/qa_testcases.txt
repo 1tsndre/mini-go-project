@@ -1,0 +1,883 @@
+================================================================================
+QA TEST CASES - mini-go-project
+E-Commerce REST API
+Total: 80 test case
+================================================================================
+
+Deskripsi:
+  Script otomatis: bash qa_test.sh
+  Rate limit login dikelola otomatis (auto-wait 65s jika mendekati limit).
+  Setup membuat fixtures baru tiap run (timestamp-based) agar tidak konflik.
+
+Roles:
+  ADMIN   - admin@example.com (seeded di DB)
+  BUYER   - qa_buyer_<ts>@test.com (register saat setup)
+  SELLER  - user yang sama dengan BUYER setelah create store (re-login)
+  BUYER2  - qa_buyer2_<ts>@test.com (register saat setup, untuk order/review)
+
+--------------------------------------------------------------------------------
+0. HEALTH (1 test)
+--------------------------------------------------------------------------------
+
+TC-001
+  Nama    : GET /health → 200 (status: ok)
+  Method  : GET
+  URL     : /health
+  Auth    : -
+  Body    : -
+  Assert  : HTTP 200
+            data.status = "ok"
+  Tujuan  : Memastikan service berjalan dan health endpoint dapat diakses
+            oleh load balancer / container probe tanpa autentikasi.
+
+--------------------------------------------------------------------------------
+1. AUTH (12 test)
+--------------------------------------------------------------------------------
+
+TC-002
+  Nama    : Register valid → 201
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : { "email": "qa_reg_<ts>@test.com", "password": "pass123", "name": "Reg User" }
+  Assert  : HTTP 201
+  Tujuan  : Registrasi user baru dengan data valid harus berhasil.
+
+TC-003
+  Nama    : Register email invalid → 400
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : { "email": "bukan-email", "password": "pass123", "name": "Test" }
+  Assert  : HTTP 400
+            errors[0].field = "email"
+  Tujuan  : Format email yang tidak valid harus ditolak dengan field error.
+
+TC-004
+  Nama    : Register password pendek → 400
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : { "email": "short@test.com", "password": "abc", "name": "Test" }
+  Assert  : HTTP 400
+            errors[0].field = "password"
+  Tujuan  : Password kurang dari 6 karakter harus ditolak.
+
+TC-005
+  Nama    : Register kosong → 400 (3 field errors)
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : {}
+  Assert  : HTTP 400
+            len(errors) = 3  (email, password, name)
+  Tujuan  : Semua field wajib divalidasi sekaligus, bukan satu per satu.
+
+TC-006
+  Nama    : Register name kosong → 400
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : { "email": "noname@test.com", "password": "pass123" }
+  Assert  : HTTP 400
+            errors[0].field = "name"
+  Tujuan  : Field name wajib diisi.
+
+TC-007
+  Nama    : Register duplicate → 409 CONFLICT
+  Method  : POST
+  URL     : /api/v1/auth/register
+  Auth    : -
+  Body    : { "email": "<email BUYER yang sudah ada>", "password": "pass123", "name": "Dup" }
+  Assert  : HTTP 409
+            errors[0].code = "CONFLICT"
+  Tujuan  : Registrasi dengan email yang sudah terdaftar harus ditolak dengan 409.
+
+TC-008
+  Nama    : Login email tidak terdaftar → 401
+  Method  : POST
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : { "email": "notexist@qa.com", "password": "pass123" }
+  Assert  : HTTP 401
+            errors[0].code = "UNAUTHORIZED"
+  Tujuan  : Login dengan email yang belum pernah register harus ditolak.
+
+TC-009
+  Nama    : Login kosong → 400 (2 field errors)
+  Method  : POST
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : {}
+  Assert  : HTTP 400
+            len(errors) = 2  (email, password)
+  Tujuan  : Field email dan password wajib divalidasi.
+
+TC-010
+  Nama    : Login valid → 200 + access_token
+  Method  : POST
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : { "email": "<BUYER_EMAIL>", "password": "pass123" }
+  Assert  : HTTP 200
+            data.access_token != ""
+  Tujuan  : Login dengan kredensial benar menghasilkan JWT access token.
+
+TC-011
+  Nama    : Login password salah → 401
+  Method  : POST
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : { "email": "<BUYER_EMAIL>", "password": "wrongpass" }
+  Assert  : HTTP 401
+            errors[0].code = "UNAUTHORIZED"
+  Tujuan  : Login dengan password salah harus ditolak.
+
+TC-012
+  Nama    : Refresh token → 200 + token baru
+  Method  : POST
+  URL     : /api/v1/auth/refresh
+  Auth    : -
+  Body    : { "refresh_token": "<BUYER_REFRESH>" }
+  Assert  : HTTP 200
+            data.access_token != ""
+  Tujuan  : Refresh token valid menghasilkan access token baru.
+  Catatan : Endpoint ini menggunakan rate limit authRate (120/min),
+            bukan loginRate — tidak perlu do_auth_post.
+
+TC-013
+  Nama    : Refresh tanpa token → 400
+  Method  : POST
+  URL     : /api/v1/auth/refresh
+  Auth    : -
+  Body    : {}
+  Assert  : HTTP 400
+            errors[0].field = "refresh_token"
+  Tujuan  : Field refresh_token wajib diisi.
+
+--------------------------------------------------------------------------------
+2. STORE (7 test)
+--------------------------------------------------------------------------------
+
+TC-014
+  Nama    : Create store (buyer → seller) → OK
+  Method  : POST
+  URL     : /api/v1/stores
+  Auth    : Bearer BUYER_TOKEN
+  Body    : { "name": "QA Store <ts>", "description": "Test" }
+  Assert  : STORE_ID != ""  (setup fixture check)
+  Tujuan  : Buyer yang membuat store otomatis naik role menjadi seller.
+
+TC-015
+  Nama    : Create store name kosong → 400
+  Method  : POST
+  URL     : /api/v1/stores
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "name": "" }
+  Assert  : HTTP 400
+            errors[0].field = "name"
+  Tujuan  : Field name wajib diisi saat membuat store.
+
+TC-016
+  Nama    : Get store → 200
+  Method  : GET
+  URL     : /api/v1/stores/<STORE_ID>
+  Auth    : -
+  Assert  : HTTP 200
+            data.id = STORE_ID
+  Tujuan  : Detail store dapat diakses publik tanpa autentikasi.
+
+TC-017
+  Nama    : Get store invalid UUID → 400
+  Method  : GET
+  URL     : /api/v1/stores/bukan-uuid
+  Auth    : -
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Tujuan  : Path param UUID yang tidak valid harus ditolak di handler.
+
+TC-018
+  Nama    : Get store not found → 404
+  Method  : GET
+  URL     : /api/v1/stores/00000000-0000-0000-0000-000000000000
+  Auth    : -
+  Assert  : HTTP 404
+  Tujuan  : UUID valid tapi store tidak ada harus return 404.
+
+TC-019
+  Nama    : Update store (seller) → 200
+  Method  : PUT
+  URL     : /api/v1/stores/<STORE_ID>
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "QA Store Updated", "description": "Updated" }
+  Assert  : HTTP 200
+            data.name = "QA Store Updated"
+  Tujuan  : Seller pemilik store dapat mengupdate data store-nya.
+
+TC-020
+  Nama    : Update store tanpa auth → 401
+  Method  : PUT
+  URL     : /api/v1/stores/<STORE_ID>
+  Auth    : -
+  Body    : { "name": "Hack" }
+  Assert  : HTTP 401
+  Tujuan  : Update store tanpa token harus ditolak oleh auth middleware.
+
+--------------------------------------------------------------------------------
+3. CATEGORY (12 test)
+--------------------------------------------------------------------------------
+
+TC-021
+  Nama    : Create category (admin) → OK
+  Method  : POST
+  URL     : /api/v1/categories
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "QA Cat <ts>" }
+  Assert  : CAT_ID != ""  (setup fixture check)
+  Tujuan  : Admin dapat membuat kategori baru.
+
+TC-022
+  Nama    : Create category name kosong → 400
+  Method  : POST
+  URL     : /api/v1/categories
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "" }
+  Assert  : HTTP 400
+            errors[0].field = "name"
+  Tujuan  : Field name wajib diisi saat membuat kategori.
+
+TC-023
+  Nama    : Create category duplicate → 409
+  Method  : POST
+  URL     : /api/v1/categories
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "QA Cat <ts>" }  (nama sama dengan yang sudah ada)
+  Assert  : HTTP 409
+            errors[0].code = "CONFLICT"
+  Tujuan  : Nama kategori harus unik; duplikat ditolak dengan 409.
+
+TC-024
+  Nama    : Create category tanpa auth → 401
+  Method  : POST
+  URL     : /api/v1/categories
+  Auth    : -
+  Body    : { "name": "Unauth Cat" }
+  Assert  : HTTP 401
+  Tujuan  : Endpoint create category hanya boleh diakses dengan token valid.
+
+TC-025
+  Nama    : Create category (buyer token) → 403
+  Method  : POST
+  URL     : /api/v1/categories
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "name": "Buyer Cat" }
+  Assert  : HTTP 403
+  Tujuan  : Hanya admin yang boleh membuat kategori; buyer ditolak 403.
+
+TC-026
+  Nama    : Get categories → 200 (array, no raw DB error)
+  Method  : GET
+  URL     : /api/v1/categories
+  Auth    : -
+  Assert  : HTTP 200
+            type(data) = list
+  Tujuan  : List kategori dapat diakses publik dan tidak mengekspos raw DB error.
+
+TC-027
+  Nama    : Update category invalid UUID → 400
+  Method  : PUT
+  URL     : /api/v1/categories/bukan-uuid
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "Test" }
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Tujuan  : Path param UUID yang tidak valid harus ditolak.
+
+TC-028
+  Nama    : Update category not found → 404
+  Method  : PUT
+  URL     : /api/v1/categories/00000000-0000-0000-0000-000000000000
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "Test" }
+  Assert  : HTTP 404
+  Tujuan  : Update kategori yang tidak ada harus return 404.
+
+TC-029
+  Nama    : Update category oleh seller → 403
+  Method  : PUT
+  URL     : /api/v1/categories/<CAT_ID>
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "Hack" }
+  Assert  : HTTP 403
+  Tujuan  : Hanya admin yang dapat mengupdate kategori; role lain ditolak 403
+            oleh middleware RequireRole(admin).
+
+TC-030
+  Nama    : Update category (admin) → 200
+  Method  : PUT
+  URL     : /api/v1/categories/<CAT_ID>
+  Auth    : Bearer ADMIN_TOKEN
+  Body    : { "name": "QA Cat Upd <ts>" }
+  Assert  : HTTP 200
+  Tujuan  : Admin dapat mengupdate nama kategori.
+
+TC-031
+  Nama    : Delete category not found → 404
+  Method  : DELETE
+  URL     : /api/v1/categories/00000000-0000-0000-0000-000000000000
+  Auth    : Bearer ADMIN_TOKEN
+  Assert  : HTTP 404
+            errors[0].code = "NOT_FOUND"
+  Tujuan  : Delete kategori yang tidak ada harus return 404 dengan error code.
+
+TC-032
+  Nama    : Delete category (admin) → 200
+  Method  : DELETE
+  URL     : /api/v1/categories/<DEL_CAT_ID>
+  Auth    : Bearer ADMIN_TOKEN
+  Assert  : HTTP 200
+            data.message = "category deleted"
+  Tujuan  : Admin dapat menghapus kategori yang ada.
+
+--------------------------------------------------------------------------------
+4. PRODUCT (12 test)
+--------------------------------------------------------------------------------
+
+TC-033
+  Nama    : Create product (seller) → OK
+  Method  : POST
+  URL     : /api/v1/products
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "QA Product <ts>", "description": "Test",
+              "price": "500000.00", "stock": 20, "category_id": "<CAT_ID>" }
+  Assert  : PROD_ID != ""  (setup fixture check)
+  Tujuan  : Seller dapat membuat produk baru.
+
+TC-034
+  Nama    : Create product tanpa name → 400
+  Method  : POST
+  URL     : /api/v1/products
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "price": "100.00", "stock": 1, "category_id": "<CAT_ID>" }
+  Assert  : HTTP 400
+            errors[0].field = "name"
+  Tujuan  : Field name wajib diisi saat membuat produk.
+
+TC-035
+  Nama    : Create product tanpa price → 400
+  Method  : POST
+  URL     : /api/v1/products
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "Test", "stock": 1, "category_id": "<CAT_ID>" }
+  Assert  : HTTP 400
+            errors[0].field = "price"
+  Tujuan  : Field price wajib diisi saat membuat produk.
+
+TC-036
+  Nama    : Create product tanpa category_id → 400
+  Method  : POST
+  URL     : /api/v1/products
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "Test", "price": "100.00", "stock": 1 }
+  Assert  : HTTP 400
+            errors[0].field = "category_id"
+  Tujuan  : Field category_id wajib diisi saat membuat produk.
+
+TC-037
+  Nama    : Create product tanpa auth → 401
+  Method  : POST
+  URL     : /api/v1/products
+  Auth    : -
+  Body    : { "name": "X", "price": "100.00", "stock": 1, "category_id": "<CAT_ID>" }
+  Assert  : HTTP 401
+  Tujuan  : Hanya seller ter-autentikasi yang dapat membuat produk.
+
+TC-038
+  Nama    : Get products list → 200 + pagination
+  Method  : GET
+  URL     : /api/v1/products?page=1&per_page=5
+  Auth    : -
+  Assert  : HTTP 200
+            meta.pagination.current_page = 1
+  Tujuan  : List produk dapat diakses publik dan memiliki pagination metadata.
+
+TC-039
+  Nama    : Get product detail → 200
+  Method  : GET
+  URL     : /api/v1/products/<PROD_ID>
+  Auth    : -
+  Assert  : HTTP 200
+            data.id = PROD_ID
+  Tujuan  : Detail produk dapat diakses publik tanpa autentikasi.
+
+TC-040
+  Nama    : Get product not found → 404
+  Method  : GET
+  URL     : /api/v1/products/00000000-0000-0000-0000-000000000000
+  Auth    : -
+  Assert  : HTTP 404
+  Tujuan  : Produk yang tidak ada harus return 404.
+
+TC-041
+  Nama    : Search product → 200
+  Method  : GET
+  URL     : /api/v1/products?search=QA%20Product
+  Auth    : -
+  Assert  : HTTP 200
+  Tujuan  : Full-text search produk berfungsi tanpa error.
+
+TC-042
+  Nama    : Filter product by category_id → 200
+  Method  : GET
+  URL     : /api/v1/products?category_id=<CAT_ID>
+  Auth    : -
+  Assert  : HTTP 200
+  Tujuan  : Filter produk berdasarkan kategori berfungsi tanpa error.
+
+TC-043
+  Nama    : Update product (seller) → 200
+  Method  : PUT
+  URL     : /api/v1/products/<PROD_ID>
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "name": "QA Product Updated", "price": "450000.00",
+              "stock": 15, "category_id": "<CAT_ID>" }
+  Assert  : HTTP 200
+            data.price = 450000
+  Tujuan  : Seller pemilik produk dapat mengupdate data produk.
+
+TC-044
+  Nama    : Delete product (seller) → 200
+  Method  : DELETE
+  URL     : /api/v1/products/<DEL_PROD_ID>
+  Auth    : Bearer SELLER_TOKEN
+  Assert  : HTTP 200
+            data.message = "product deleted"
+  Tujuan  : Seller pemilik produk dapat menghapus produk miliknya.
+
+--------------------------------------------------------------------------------
+5. CART (9 test)
+--------------------------------------------------------------------------------
+
+TC-045
+  Nama    : Seller akses cart → 403
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : Bearer SELLER_TOKEN
+  Assert  : HTTP 403
+  Tujuan  : Endpoint cart hanya dapat diakses oleh buyer; seller ditolak 403
+            oleh middleware RequireRole(buyer).
+
+TC-046
+  Nama    : Add cart item quantity 0 → 400
+  Method  : POST
+  URL     : /api/v1/cart/items
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "product_id": "<PROD_ID>", "quantity": 0 }
+  Assert  : HTTP 400
+            errors[0].field = "quantity"
+  Tujuan  : Quantity 0 harus ditolak; cart item harus punya qty minimal 1.
+
+TC-047
+  Nama    : Add cart item quantity negatif → 400
+  Method  : POST
+  URL     : /api/v1/cart/items
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "product_id": "<PROD_ID>", "quantity": -1 }
+  Assert  : HTTP 400
+            errors[0].field = "quantity"
+  Tujuan  : Quantity negatif harus ditolak oleh handler validation.
+
+TC-048
+  Nama    : Add item to cart → 200
+  Method  : POST
+  URL     : /api/v1/cart/items
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "product_id": "<PROD_ID>", "quantity": 2 }
+  Assert  : HTTP 200
+            data.items[0].quantity = 2
+  Tujuan  : Menambahkan item ke cart dengan qty valid harus berhasil.
+
+TC-049
+  Nama    : Get cart → 200 (1 item)
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            len(data.items) = 1
+  Tujuan  : Cart buyer dapat diambil dan berisi item yang ditambahkan.
+
+TC-050
+  Nama    : Update cart quantity → 200
+  Method  : PUT
+  URL     : /api/v1/cart/items/<PROD_ID>
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "quantity": 3 }
+  Assert  : HTTP 200
+            data.items[0].quantity = 3
+  Tujuan  : Quantity item dalam cart dapat diupdate.
+
+TC-051
+  Nama    : Update cart item quantity 0 → 400
+  Method  : PUT
+  URL     : /api/v1/cart/items/<PROD_ID>
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "quantity": 0 }
+  Assert  : HTTP 400
+            errors[0].field = "quantity"
+  Tujuan  : Update quantity ke 0 harus ditolak; gunakan DELETE untuk menghapus.
+
+TC-052
+  Nama    : Remove cart item → 200 (cart kosong)
+  Method  : DELETE
+  URL     : /api/v1/cart/items/<PROD_ID>
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            len(data.items) = 0
+  Tujuan  : Menghapus item dari cart; setelah dihapus cart menjadi kosong.
+
+TC-053
+  Nama    : Empty cart updated_at bukan zero value
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            data.updated_at tidak mengandung "0001-01-01"
+  Tujuan  : Cart yang sudah pernah diisi tidak boleh menampilkan zero time
+            (0001-01-01T00:00:00Z) di field updated_at.
+
+--------------------------------------------------------------------------------
+6. ORDER (14 test)
+--------------------------------------------------------------------------------
+
+TC-054
+  Nama    : Checkout tanpa shipping_address → 400
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : {}
+  Assert  : HTTP 400
+            errors[0].field = "shipping_address"
+  Tujuan  : Field shipping_address wajib diisi saat checkout.
+
+TC-055
+  Nama    : Checkout valid → 201 + shipping_address
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "shipping_address": "Jl. QA Test No.1 Jakarta" }
+  Assert  : HTTP 201
+            data.shipping_address = "Jl. QA Test No.1 Jakarta"
+  Tujuan  : Checkout dengan data lengkap berhasil membuat order baru.
+  Catatan : Cart BUYER2 harus terisi terlebih dahulu (1 item PROD_ID qty 1).
+
+TC-056
+  Nama    : Order auto-paid via NSQ
+  Method  : GET
+  URL     : /api/v1/orders/<ORDER_ID>
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            data.status = "paid"
+  Tujuan  : Setelah checkout, order diproses oleh payment-service via NSQ
+            dan status berubah ke "paid" dalam beberapa detik.
+  Catatan : Script menunggu 3 detik sebelum mengecek status.
+
+TC-057
+  Nama    : List orders (buyer) → 200
+  Method  : GET
+  URL     : /api/v1/orders
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            len(data) >= 1
+  Tujuan  : Buyer dapat melihat daftar order miliknya.
+
+TC-058
+  Nama    : List seller orders → 200
+  Method  : GET
+  URL     : /api/v1/seller/orders
+  Auth    : Bearer SELLER_TOKEN
+  Assert  : HTTP 200
+  Tujuan  : Seller dapat melihat daftar order yang masuk untuk produknya.
+
+TC-059
+  Nama    : Update order status → processing
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER_ID>/status
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "status": "processing" }
+  Assert  : HTTP 200
+  Tujuan  : Seller dapat memajukan status order dari "paid" ke "processing".
+
+TC-060
+  Nama    : Update order status → shipping
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER_ID>/status
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "status": "shipping" }
+  Assert  : HTTP 200
+  Tujuan  : Seller dapat memajukan status order dari "processing" ke "shipping".
+
+TC-061
+  Nama    : Update order status field kosong → 400
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER_ID>/status
+  Auth    : Bearer SELLER_TOKEN
+  Body    : {}
+  Assert  : HTTP 400
+            errors[0].field = "status"
+  Tujuan  : Field status wajib diisi saat update status order.
+
+TC-062
+  Nama    : Cancel order (shipping) → 400 INVALID_STATUS
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER_ID>/cancel
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : -
+  Assert  : HTTP 400
+            errors[0].code = "INVALID_STATUS"
+  Tujuan  : Order yang sudah berstatus "shipping" tidak dapat dibatalkan.
+            Cancel hanya diizinkan sampai status "processing".
+
+TC-063
+  Nama    : Cancel order (pending) → 200
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER2_ID>/cancel
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : -
+  Assert  : HTTP 200
+            data.message = "order cancelled"
+  Tujuan  : Order yang masih berstatus "pending" dapat dibatalkan oleh buyer.
+
+TC-064
+  Nama    : Checkout cart kosong → 400
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "shipping_address": "Jl. Empty Cart Test" }
+  Assert  : HTTP 400
+  Tujuan  : Tidak dapat checkout jika cart kosong. Cart BUYER2 sudah dikosongkan
+            setelah ORDER2 di-checkout pada TC-063.
+
+TC-065
+  Nama    : Get order invalid UUID → 400
+  Method  : GET
+  URL     : /api/v1/orders/bukan-uuid
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Tujuan  : Path param UUID yang tidak valid harus ditolak di handler.
+
+TC-066
+  Nama    : Update order status invalid transition → 400
+  Method  : PUT
+  URL     : /api/v1/orders/<ORDER2_ID>/status
+  Auth    : Bearer SELLER_TOKEN
+  Body    : { "status": "processing" }
+  Assert  : HTTP 400
+  Tujuan  : Tidak dapat memajukan status order yang sudah "cancelled".
+            Transisi status yang tidak valid harus ditolak.
+
+TC-067
+  Nama    : Cancel order invalid UUID → 400
+  Method  : PUT
+  URL     : /api/v1/orders/bukan-uuid/cancel
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : -
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Tujuan  : Path param UUID yang tidak valid harus ditolak di handler.
+
+--------------------------------------------------------------------------------
+7. REVIEW (6 test)
+--------------------------------------------------------------------------------
+
+TC-068
+  Nama    : Review rating 0 → 400
+  Method  : POST
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : Bearer BUYER_TOKEN
+  Body    : { "rating": 0 }
+  Assert  : HTTP 400
+            errors[0].field = "rating"
+  Tujuan  : Rating 0 (di bawah minimum 1) harus ditolak oleh validasi handler.
+
+TC-069
+  Nama    : Review tanpa pembelian → 403
+  Method  : POST
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : Bearer BUYER_TOKEN
+  Body    : { "rating": 5 }
+  Assert  : HTTP 403
+            errors[0].code = "FORBIDDEN"
+  Tujuan  : Buyer yang belum pernah membeli produk tidak dapat memberikan review.
+  Catatan : BUYER_TOKEN berbeda dengan BUYER2_TOKEN. Hanya BUYER2 yang membeli
+            produk ini. BUYER_TOKEN akan ditolak di service layer.
+
+TC-070
+  Nama    : Review valid (setelah shipped) → 201
+  Method  : POST
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "rating": 4, "comment": "Produk bagus" }
+  Assert  : HTTP 201
+            data.rating = 4
+  Tujuan  : Review dapat dibuat setelah order berstatus "shipped".
+  Catatan : Script mengupdate ORDER_ID ke "shipped" sebelum test ini.
+
+TC-071
+  Nama    : Review duplikat → 409 CONFLICT
+  Method  : POST
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : Bearer BUYER2_TOKEN
+  Body    : { "rating": 3 }
+  Assert  : HTTP 409
+            errors[0].code = "CONFLICT"
+  Tujuan  : Satu buyer hanya boleh memberi satu review per produk.
+            Review kedua untuk produk yang sama harus ditolak.
+
+TC-072
+  Nama    : Review rating > 5 → 400
+  Method  : POST
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : Bearer BUYER_TOKEN
+  Body    : { "rating": 6 }
+  Assert  : HTTP 400
+            errors[0].field = "rating"
+  Tujuan  : Rating di atas 5 (maksimum) harus ditolak oleh validasi handler.
+
+TC-073
+  Nama    : List reviews → 200 + pagination
+  Method  : GET
+  URL     : /api/v1/products/<PROD_ID>/reviews
+  Auth    : -
+  Assert  : HTTP 200
+            meta.pagination.total_items >= 1
+  Tujuan  : List review produk dapat diakses publik dan memiliki pagination.
+
+--------------------------------------------------------------------------------
+8. ERROR CASES (7 test)
+--------------------------------------------------------------------------------
+
+TC-074
+  Nama    : 404 unknown endpoint → JSON NOT_FOUND
+  Method  : GET
+  URL     : /api/v1/endpoint-tidak-ada
+  Auth    : -
+  Assert  : HTTP 404
+            errors[0].code = "NOT_FOUND"
+  Tujuan  : Endpoint yang tidak terdaftar harus mengembalikan JSON 404,
+            bukan plain text default dari Go net/http mux.
+
+TC-075
+  Nama    : Invalid UUID path param (product) → 400
+  Method  : GET
+  URL     : /api/v1/products/bukan-uuid
+  Auth    : -
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Tujuan  : String yang bukan UUID di path param harus ditolak dengan 400,
+            bukan 500 atau panic.
+
+TC-076
+  Nama    : Token invalid → 401 UNAUTHORIZED
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : Bearer invalid.token.here
+  Assert  : HTTP 401
+            errors[0].code = "UNAUTHORIZED"
+  Tujuan  : JWT yang tidak valid (malformed/expired/bad signature) harus
+            ditolak oleh auth middleware.
+
+TC-077
+  Nama    : Bad Authorization format → 401
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : justtoken  (tanpa "Bearer " prefix)
+  Assert  : HTTP 401
+  Tujuan  : Authorization header yang tidak mengikuti format "Bearer <token>"
+            harus ditolak oleh auth middleware.
+
+TC-078
+  Nama    : Seller akses buyer endpoint → 403
+  Method  : GET
+  URL     : /api/v1/cart
+  Auth    : Bearer SELLER_TOKEN
+  Assert  : HTTP 403
+            errors[0].code = "FORBIDDEN"
+  Tujuan  : Endpoint yang membutuhkan role buyer harus menolak seller dengan 403.
+            Role check dilakukan oleh middleware RequireRole.
+
+TC-079
+  Nama    : Body bukan JSON → 400
+  Method  : POST
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : bukan json  (plain text)
+  Assert  : HTTP 400
+  Tujuan  : Request body yang bukan JSON valid harus ditolak oleh json.Decoder.
+
+TC-080
+  Nama    : Rate limit login (ke-11) → 429
+  Method  : POST (11x)
+  URL     : /api/v1/auth/login
+  Auth    : -
+  Body    : { "email": "x@x.com", "password": "wrong" }
+  Assert  : HTTP 429 pada request ke-11
+  Tujuan  : Rate limiter login (10 req/min sliding window via Redis) harus
+            memblokir request ke-11 dalam window yang sama dengan 429.
+
+================================================================================
+ORDER FLOW YANG DIUJI
+================================================================================
+
+  pending
+    │ checkout valid (TC-055)
+    ▼
+  paid  ◄── NSQ payment pipeline (TC-056)
+    │ update status → processing (TC-059)
+    ▼
+  processing
+    │ update status → shipping (TC-060)
+    ▼
+  shipping
+    │ update status → shipped (dilakukan di setup TC-070)
+    ▼
+  shipped
+    │ review dapat dibuat (TC-070)
+    ▼
+  (completed — tidak diuji, memerlukan buyer konfirmasi)
+
+  Cancel flow:
+    pending → cancel OK (TC-063)
+    shipping → cancel DITOLAK (TC-062)
+    cancelled → update status DITOLAK (TC-066)
+
+================================================================================
+VALIDASI RATE LIMIT
+================================================================================
+
+  Endpoint             Rate Limit    Tipe
+  ------------------   ----------    -------
+  POST /auth/login     10 req/min    loginRate  (sliding window Redis)
+  POST /auth/register  10 req/min    loginRate  (same bucket sebagai login)
+  POST /auth/refresh   120 req/min   authRate
+  Endpoint publik      60 req/min    publicRate
+  Endpoint auth'd      120 req/min   authRate
+
+  Script menghitung loginRate calls via file counter (RATE_FILE).
+  Auto-wait 65 detik saat counter mendekati 9 (margin 1 dari limit 10).
+
+================================================================================
+ENVIRONMENT
+================================================================================
+
+  Service     : go run store-service/cmd/main.go
+  Base URL    : http://localhost:8080  (default, bisa override via arg)
+  Database    : PostgreSQL (harus running sebelum service start)
+  Cache       : Redis (harus running)
+  Messaging   : NSQ nsqd + nsqlookupd (harus running untuk TC-056)
+  Payment Svc : go run payment-service/cmd/main.go (harus running untuk TC-056)
+
+  Jalankan: bash qa_test.sh
+  Atau    : bash qa_test.sh http://localhost:9090  (custom base URL)
+
+================================================================================
