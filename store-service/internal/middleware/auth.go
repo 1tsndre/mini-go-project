@@ -49,6 +49,14 @@ func Auth(jwtManager *jwt.JWTManager) func(http.Handler) http.Handler {
 				return
 			}
 
+			if claims.Type != jwt.TokenTypeAccess {
+				meta := BuildMeta(r)
+				response.ErrorResponse(w, http.StatusUnauthorized, meta,
+					response.NewError(constant.ErrCodeUnauthorized, "invalid token type"),
+				)
+				return
+			}
+
 			ctx := r.Context()
 			ctx = context.WithValue(ctx, ContextUserID, claims.UserID)
 			ctx = context.WithValue(ctx, ContextEmail, claims.Email)
