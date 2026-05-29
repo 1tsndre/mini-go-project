@@ -32,8 +32,9 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	if cfg.JWT.Secret == "" {
-		log.Fatal("JWT_SECRET must be set")
+	const insecureJWTSecret = "your-super-secret-key-change-this"
+	if cfg.JWT.Secret == "" || cfg.JWT.Secret == insecureJWTSecret {
+		log.Fatal("JWT_SECRET must be set to a strong, non-default value")
 	}
 
 	logger.Init(cfg.App.Env)
