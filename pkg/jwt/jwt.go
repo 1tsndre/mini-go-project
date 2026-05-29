@@ -12,10 +12,16 @@ var (
 	ErrExpiredToken = errors.New("token has expired")
 )
 
+const (
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
+)
+
 type Claims struct {
 	UserID string `json:"user_id"`
 	Email  string `json:"email"`
 	Role   string `json:"role"`
+	Type   string `json:"type"`
 	jwt.RegisteredClaims
 }
 
@@ -39,12 +45,12 @@ func NewJWTManager(secret string, accessExpiry, refreshExpiry time.Duration) *JW
 }
 
 func (m *JWTManager) GenerateTokenPair(userID, email, role string) (*TokenPair, error) {
-	accessToken, err := m.generateToken(userID, email, role, m.accessExpiry)
+	accessToken, err := m.generateToken(userID, email, role, TokenTypeAccess, m.accessExpiry)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := m.generateToken(userID, email, role, m.refreshExpiry)
+	refreshToken, err := m.generateToken(userID, email, role, TokenTypeRefresh, m.refreshExpiry)
 	if err != nil {
 		return nil, err
 	}
@@ -77,11 +83,12 @@ func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-func (m *JWTManager) generateToken(userID, email, role string, expiry time.Duration) (string, error) {
+func (m *JWTManager) generateToken(userID, email, role, tokenType string, expiry time.Duration) (string, error) {
 	claims := &Claims{
 		UserID: userID,
 		Email:  email,
 		Role:   role,
+		Type:   tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

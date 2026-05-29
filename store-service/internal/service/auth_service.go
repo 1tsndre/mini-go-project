@@ -92,6 +92,10 @@ func (s *authService) RefreshToken(ctx context.Context, req model.RefreshRequest
 		return nil, errors.New("invalid refresh token")
 	}
 
+	if claims.Type != jwt.TokenTypeRefresh {
+		return nil, errors.New("invalid refresh token")
+	}
+
 	tokenPair, err := s.jwtManager.GenerateTokenPair(claims.UserID, claims.Email, claims.Role)
 	if err != nil {
 		logger.Error(ctx, "failed to generate token pair", err)
