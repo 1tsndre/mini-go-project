@@ -118,7 +118,6 @@ func Load() (*Config, error) {
 	v.SetDefault("REDIS_DB", 0)
 	v.SetDefault("NSQ_LOOKUPD_ADDR", "localhost:4161")
 	v.SetDefault("NSQD_ADDR", "localhost:4150")
-	v.SetDefault("JWT_SECRET", "your-super-secret-key-change-this")
 	v.SetDefault("JWT_ACCESS_EXPIRY", "15m")
 	v.SetDefault("JWT_REFRESH_EXPIRY", "168h")
 	v.SetDefault("RATE_LIMIT_PUBLIC", 60)
