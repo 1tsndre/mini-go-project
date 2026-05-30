@@ -95,10 +95,10 @@ func NewRouter(
 	mux.Handle("PUT /api/v1/orders/{id}/status", middleware.Chain(http.HandlerFunc(handlers.Order.UpdateOrderStatus), authMw, sellerMw, authRate))
 
 	return middleware.Chain(mux,
-		middleware.Recovery,
-		middleware.Timeout(requestTimeout),
-		middleware.Logging,
 		middleware.RequestID,
+		middleware.Logging,
+		middleware.Timeout(requestTimeout),
+		middleware.Recovery,
 		middleware.MethodNotAllowed,
 	)
 }
