@@ -10,6 +10,7 @@ import (
 
 	"github.com/1tsndre/mini-go-project/pkg/response"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -64,7 +65,7 @@ func (rl *RateLimiter) allow(ctx context.Context, key string, limit int, window 
 
 	pipe := rl.client.Pipeline()
 	pipe.ZRemRangeByScore(ctx, key, "0", fmt.Sprintf("%d", windowStart))
-	pipe.ZAdd(ctx, key, redis.Z{Score: float64(now), Member: now})
+	pipe.ZAdd(ctx, key, redis.Z{Score: float64(now), Member: uuid.NewString()})
 	countCmd := pipe.ZCard(ctx, key)
 	pipe.Expire(ctx, key, window)
 
