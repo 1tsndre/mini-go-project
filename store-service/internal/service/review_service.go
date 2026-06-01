@@ -69,7 +69,7 @@ func (s *reviewService) GetProductReviews(ctx context.Context, productID uuid.UU
 		return nil, 0, errors.New("failed to fetch reviews")
 	}
 
-	var responses []model.ReviewResponse
+	responses := make([]model.ReviewResponse, 0, len(reviews))
 	for _, r := range reviews {
 		resp := r.ToResponse()
 		resp.UserName = r.User.Name

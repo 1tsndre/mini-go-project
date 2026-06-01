@@ -89,7 +89,7 @@ func (s *productService) GetProducts(ctx context.Context, filter model.ProductFi
 		return nil, 0, errors.New("failed to fetch products")
 	}
 
-	var responses []model.ProductResponse
+	responses := make([]model.ProductResponse, 0, len(products))
 	for _, p := range products {
 		responses = append(responses, p.ToResponse())
 	}

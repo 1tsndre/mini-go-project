@@ -50,7 +50,7 @@ func (s *categoryService) GetAllCategories(ctx context.Context) ([]model.Categor
 		return nil, errors.New("failed to fetch categories")
 	}
 
-	var responses []model.CategoryResponse
+	responses := make([]model.CategoryResponse, 0, len(categories))
 	for _, c := range categories {
 		responses = append(responses, c.ToResponse())
 	}
