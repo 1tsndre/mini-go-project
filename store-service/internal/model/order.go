@@ -10,6 +10,7 @@ import (
 type Order struct {
 	ID              uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
 	UserID          uuid.UUID       `gorm:"type:uuid;not null;index" json:"user_id"`
+	StoreID         uuid.UUID       `gorm:"type:uuid;not null;index" json:"store_id"`
 	Status          string          `gorm:"not null;default:pending" json:"status"`
 	TotalAmount     decimal.Decimal `gorm:"type:decimal(15,2);not null" json:"total_amount"`
 	ShippingAddress string          `gorm:"not null;default:''" json:"shipping_address"`
@@ -43,6 +44,7 @@ type CheckoutRequest struct {
 type OrderResponse struct {
 	ID              uuid.UUID           `json:"id"`
 	UserID          uuid.UUID           `json:"user_id"`
+	StoreID         uuid.UUID           `json:"store_id"`
 	Status          string              `json:"status"`
 	TotalAmount     decimal.Decimal     `json:"total_amount"`
 	ShippingAddress string              `json:"shipping_address"`
@@ -64,6 +66,7 @@ func (o *Order) ToResponse() OrderResponse {
 	resp := OrderResponse{
 		ID:              o.ID,
 		UserID:          o.UserID,
+		StoreID:         o.StoreID,
 		Status:          o.Status,
 		TotalAmount:     o.TotalAmount,
 		ShippingAddress: o.ShippingAddress,

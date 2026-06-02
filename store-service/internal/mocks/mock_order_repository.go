@@ -42,18 +42,18 @@ func (m *MockOrderRepository) EXPECT() *MockOrderRepositoryMockRecorder {
 	return m.recorder
 }
 
-// Create mocks base method.
-func (m *MockOrderRepository) Create(ctx context.Context, order *model.Order) error {
+// CreateOrders mocks base method.
+func (m *MockOrderRepository) CreateOrders(ctx context.Context, orders []*model.Order) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Create", ctx, order)
+	ret := m.ctrl.Call(m, "CreateOrders", ctx, orders)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// Create indicates an expected call of Create.
-func (mr *MockOrderRepositoryMockRecorder) Create(ctx, order any) *gomock.Call {
+// CreateOrders indicates an expected call of CreateOrders.
+func (mr *MockOrderRepositoryMockRecorder) CreateOrders(ctx, orders any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Create", reflect.TypeOf((*MockOrderRepository)(nil).Create), ctx, order)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrders", reflect.TypeOf((*MockOrderRepository)(nil).CreateOrders), ctx, orders)
 }
 
 // CreatePayment mocks base method.
@@ -146,6 +146,21 @@ func (mr *MockOrderRepositoryMockRecorder) UpdatePayment(ctx, payment any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePayment", reflect.TypeOf((*MockOrderRepository)(nil).UpdatePayment), ctx, payment)
 }
 
+// UpdateStatusIfCurrent mocks base method.
+func (m *MockOrderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStatusIfCurrent", ctx, id, fromStatus, toStatus)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateStatusIfCurrent indicates an expected call of UpdateStatusIfCurrent.
+func (mr *MockOrderRepositoryMockRecorder) UpdateStatusIfCurrent(ctx, id, fromStatus, toStatus any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusIfCurrent", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatusIfCurrent), ctx, id, fromStatus, toStatus)
+}
+
 // UpdateStatus mocks base method.
 func (m *MockOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
 	m.ctrl.T.Helper()
@@ -159,4 +174,3 @@ func (mr *MockOrderRepositoryMockRecorder) UpdateStatus(ctx, id, status any) *go
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatus), ctx, id, status)
 }
-

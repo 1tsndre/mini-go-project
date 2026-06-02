@@ -6,14 +6,16 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type OrderRepository interface {
-	Create(ctx context.Context, order *model.Order) error
+	CreateOrders(ctx context.Context, orders []*model.Order) error
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
 	FindByStoreID(ctx context.Context, storeID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status string) error
+	UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
 	CreatePayment(ctx context.Context, payment *model.Payment) error
 	UpdatePayment(ctx context.Context, payment *model.Payment) error
 	FindPaymentByOrderID(ctx context.Context, orderID uuid.UUID) (*model.Payment, error)
@@ -27,8 +29,15 @@ func NewOrderRepository(db databases.Database) OrderRepository {
 	return &orderRepository{db: db}
 }
 
-func (r *orderRepository) Create(ctx context.Context, order *model.Order) error {
-	return r.db.DB().WithContext(ctx).Create(order).Error
+func (r *orderRepository) CreateOrders(ctx context.Context, orders []*model.Order) error {
+	return r.db.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, order := range orders {
+			if err := tx.Create(order).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func (r *orderRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error) {
@@ -69,11 +78,7 @@ func (r *orderRepository) FindByStoreID(ctx context.Context, storeID uuid.UUID, 
 	var orders []model.Order
 	var total int64
 
-	query := r.db.DB().WithContext(ctx).Model(&model.Order{}).
-		Joins("JOIN order_items ON order_items.order_id = orders.id").
-		Joins("JOIN products ON products.id = order_items.product_id").
-		Where("products.store_id = ?", storeID).
-		Distinct("orders.id")
+	query := r.db.DB().WithContext(ctx).Model(&model.Order{}).Where("store_id = ?", storeID)
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -83,13 +88,7 @@ func (r *orderRepository) FindByStoreID(ctx context.Context, storeID uuid.UUID, 
 	err := r.db.DB().WithContext(ctx).
 		Preload("OrderItems").
 		Preload("Payment").
-		Where("id IN (?)",
-			r.db.DB().WithContext(ctx).Model(&model.Order{}).
-				Select("DISTINCT orders.id").
-				Joins("JOIN order_items ON order_items.order_id = orders.id").
-				Joins("JOIN products ON products.id = order_items.product_id").
-				Where("products.store_id = ?", storeID),
-		).
+		Where("store_id = ?", storeID).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(perPage).
@@ -103,6 +102,17 @@ func (r *orderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status
 		Model(&model.Order{}).
 		Where("id = ?", id).
 		Update("status", status).Error
+}
+
+func (r *orderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {
+	res := r.db.DB().WithContext(ctx).
+		Model(&model.Order{}).
+		Where("id = ? AND status = ?", id, fromStatus).
+		Update("status", toStatus)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
 func (r *orderRepository) CreatePayment(ctx context.Context, payment *model.Payment) error {
@@ -121,4 +131,3 @@ func (r *orderRepository) FindPaymentByOrderID(ctx context.Context, orderID uuid
 	}
 	return &payment, nil
 }
-

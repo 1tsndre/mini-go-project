@@ -20,7 +20,7 @@ import (
 )
 
 type OrderService interface {
-	Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) (*model.OrderResponse, error)
+	Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) ([]model.OrderResponse, error)
 	GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 	GetOrderByID(ctx context.Context, userID uuid.UUID, id uuid.UUID) (*model.OrderResponse, error)
 	CancelOrder(ctx context.Context, userID uuid.UUID, id uuid.UUID) error
@@ -56,7 +56,7 @@ func NewOrderService(
 	}
 }
 
-func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) (*model.OrderResponse, error) {
+func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingAddress string) ([]model.OrderResponse, error) {
 	cart, err := s.cartRepo.GetCart(ctx, userID)
 	if err != nil {
 		return nil, errors.New("cart not found")
@@ -90,14 +90,12 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		}
 	}()
 
-	// Phase 1: validate all items and capture snapshots (no DB writes yet)
 	type itemSnapshot struct {
 		product   *model.Product
 		orderItem model.OrderItem
 		newStock  int
 	}
 	snapshots := make([]itemSnapshot, 0, len(cart.Items))
-	totalAmount := decimal.NewFromInt(0)
 
 	for _, item := range cart.Items {
 		product, err := s.productRepo.FindByID(ctx, item.ProductID)
@@ -108,9 +106,6 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		if product.Stock < item.Quantity {
 			return nil, fmt.Errorf("insufficient stock for product %s", product.Name)
 		}
-
-		subtotal := product.Price.Mul(decimal.NewFromInt(int64(item.Quantity)))
-		totalAmount = totalAmount.Add(subtotal)
 
 		snapshots = append(snapshots, itemSnapshot{
 			product: product,
@@ -123,8 +118,6 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		})
 	}
 
-	// Phase 2: apply stock updates; rollback already-applied on partial failure
-	var orderItems []model.OrderItem
 	for i, snap := range snapshots {
 		if err := s.productRepo.UpdateStock(ctx, snap.product.ID, snap.newStock); err != nil {
 			for j := 0; j < i; j++ {
@@ -137,19 +130,35 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 			logger.Error(ctx, "failed to update stock", err)
 			return nil, errors.New("failed to process checkout")
 		}
-		orderItems = append(orderItems, snap.orderItem)
 	}
 
-	order := &model.Order{
-		UserID:          userID,
-		Status:          constant.OrderStatusPending,
-		TotalAmount:     totalAmount,
-		ShippingAddress: shippingAddress,
-		OrderItems:      orderItems,
+	ordersByStore := make(map[uuid.UUID]*model.Order)
+	storeOrder := make([]uuid.UUID, 0)
+	for _, snap := range snapshots {
+		storeID := snap.product.StoreID
+		order, ok := ordersByStore[storeID]
+		if !ok {
+			order = &model.Order{
+				UserID:          userID,
+				StoreID:         storeID,
+				Status:          constant.OrderStatusPending,
+				TotalAmount:     decimal.NewFromInt(0),
+				ShippingAddress: shippingAddress,
+			}
+			ordersByStore[storeID] = order
+			storeOrder = append(storeOrder, storeID)
+		}
+		subtotal := snap.orderItem.Price.Mul(decimal.NewFromInt(int64(snap.orderItem.Quantity)))
+		order.TotalAmount = order.TotalAmount.Add(subtotal)
+		order.OrderItems = append(order.OrderItems, snap.orderItem)
 	}
 
-	if err := s.orderRepo.Create(ctx, order); err != nil {
-		// Rollback all stock updates
+	orders := make([]*model.Order, 0, len(storeOrder))
+	for _, storeID := range storeOrder {
+		orders = append(orders, ordersByStore[storeID])
+	}
+
+	if err := s.orderRepo.CreateOrders(ctx, orders); err != nil {
 		for _, snap := range snapshots {
 			if rbErr := s.productRepo.UpdateStock(ctx, snap.product.ID, snap.product.Stock); rbErr != nil {
 				logger.Error(ctx, "failed to rollback stock after order creation failure", rbErr, map[string]interface{}{
@@ -157,7 +166,7 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 				})
 			}
 		}
-		logger.Error(ctx, "failed to create order", err)
+		logger.Error(ctx, "failed to create orders", err)
 		return nil, errors.New("failed to create order")
 	}
 
@@ -168,25 +177,35 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 	}
 
 	if s.nsqProducer != nil {
-		msg, err := json.Marshal(map[string]interface{}{
-			"order_id":     order.ID.String(),
-			"user_id":      userID.String(),
-			"total_amount": totalAmount.String(),
-		})
-		if err != nil {
-			logger.Error(ctx, "failed to marshal order.created payload", err)
-		} else if err := s.nsqProducer.Publish(constant.TopicOrderCreated, msg); err != nil {
-			logger.Error(ctx, "failed to publish order.created", err)
+		for _, order := range orders {
+			msg, err := json.Marshal(map[string]interface{}{
+				"order_id":     order.ID.String(),
+				"user_id":      userID.String(),
+				"total_amount": order.TotalAmount.String(),
+			})
+			if err != nil {
+				logger.Error(ctx, "failed to marshal order.created payload", err)
+				continue
+			}
+			if err := s.nsqProducer.Publish(constant.TopicOrderCreated, msg); err != nil {
+				logger.Error(ctx, "failed to publish order.created", err, map[string]interface{}{
+					"order_id": order.ID.String(),
+				})
+			}
 		}
 	}
 
-	logger.Info(ctx, "order created", map[string]interface{}{
-		"order_id":     order.ID.String(),
-		"total_amount": totalAmount.String(),
+	responses := make([]model.OrderResponse, 0, len(orders))
+	for _, order := range orders {
+		responses = append(responses, order.ToResponse())
+	}
+
+	logger.Info(ctx, "orders created", map[string]interface{}{
+		"user_id": userID.String(),
+		"count":   len(orders),
 	})
 
-	resp := order.ToResponse()
-	return &resp, nil
+	return responses, nil
 }
 
 func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error) {
@@ -197,7 +216,7 @@ func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, pe
 		return nil, 0, errors.New("failed to fetch orders")
 	}
 
-	var responses []model.OrderResponse
+	responses := make([]model.OrderResponse, 0, len(orders))
 	for _, o := range orders {
 		responses = append(responses, o.ToResponse())
 	}
@@ -233,7 +252,25 @@ func (s *orderService) CancelOrder(ctx context.Context, userID uuid.UUID, id uui
 		return fmt.Errorf("cannot cancel order with status %s", order.Status)
 	}
 
-	for _, item := range order.OrderItems {
+	claimed, err := s.orderRepo.UpdateStatusIfCurrent(ctx, id, order.Status, constant.OrderStatusCancelled)
+	if err != nil {
+		return errors.New("failed to cancel order")
+	}
+	if !claimed {
+		return errors.New("cannot cancel order, status changed")
+	}
+
+	s.restoreStock(ctx, order.OrderItems)
+
+	logger.Info(ctx, "order cancelled", map[string]interface{}{
+		"order_id": id.String(),
+	})
+
+	return nil
+}
+
+func (s *orderService) restoreStock(ctx context.Context, items []model.OrderItem) {
+	for _, item := range items {
 		lockKey := fmt.Sprintf(constant.KeyStockLock, item.ProductID.String())
 		mutex := s.redsync.NewMutex(lockKey, redsync.WithExpiry(10*time.Second))
 		if err := mutex.Lock(); err != nil {
@@ -246,22 +283,12 @@ func (s *orderService) CancelOrder(ctx context.Context, userID uuid.UUID, id uui
 			continue
 		}
 		if err := s.productRepo.UpdateStock(ctx, item.ProductID, product.Stock+item.Quantity); err != nil {
-			logger.Error(ctx, "failed to restore stock for cancelled order", err, map[string]interface{}{
+			logger.Error(ctx, "failed to restore stock", err, map[string]interface{}{
 				"product_id": item.ProductID.String(),
 			})
 		}
 		mutex.Unlock()
 	}
-
-	if err := s.orderRepo.UpdateStatus(ctx, id, constant.OrderStatusCancelled); err != nil {
-		return errors.New("failed to cancel order")
-	}
-
-	logger.Info(ctx, "order cancelled", map[string]interface{}{
-		"order_id": id.String(),
-	})
-
-	return nil
 }
 
 func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error {
@@ -292,19 +319,8 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID
 		return errors.New("store not found")
 	}
 
-	hasItem := false
-	for _, item := range order.OrderItems {
-		product, err := s.productRepo.FindByID(ctx, item.ProductID)
-		if err != nil {
-			continue
-		}
-		if product.StoreID == store.ID {
-			hasItem = true
-			break
-		}
-	}
-	if !hasItem {
-		return errors.New("forbidden: no items from your store in this order")
+	if order.StoreID != store.ID {
+		return errors.New("forbidden: order does not belong to your store")
 	}
 
 	if err := s.orderRepo.UpdateStatus(ctx, id, status); err != nil {
@@ -327,7 +343,7 @@ func (s *orderService) GetSellerOrders(ctx context.Context, userID uuid.UUID, pa
 		return nil, 0, errors.New("failed to fetch orders")
 	}
 
-	var responses []model.OrderResponse
+	responses := make([]model.OrderResponse, 0, len(orders))
 	for _, o := range orders {
 		responses = append(responses, o.ToResponse())
 	}
@@ -341,11 +357,25 @@ func (s *orderService) ProcessPaymentResult(ctx context.Context, orderID uuid.UU
 		return errors.New("order not found")
 	}
 
-	payment, _ := s.orderRepo.FindPaymentByOrderID(ctx, orderID)
-
 	if success {
-		now := time.Now()
+		updated, err := s.orderRepo.UpdateStatusIfCurrent(ctx, orderID, constant.OrderStatusPending, constant.OrderStatusPaid)
+		if err != nil {
+			logger.Error(ctx, "failed to update order status to paid", err, map[string]interface{}{
+				"order_id": order.ID.String(),
+			})
+			return err
+		}
+		if !updated {
+			logger.Warn(ctx, "ignoring payment success for non-pending order", map[string]interface{}{
+				"order_id": order.ID.String(),
+				"status":   order.Status,
+			})
+			return nil
+		}
+
+		payment, _ := s.orderRepo.FindPaymentByOrderID(ctx, orderID)
 		if payment != nil {
+			now := time.Now()
 			payment.Status = model.PaymentStatusSuccess
 			payment.PaidAt = &now
 			if err := s.orderRepo.UpdatePayment(ctx, payment); err != nil {
@@ -355,17 +385,23 @@ func (s *orderService) ProcessPaymentResult(ctx context.Context, orderID uuid.UU
 				return err
 			}
 		}
-		if err := s.orderRepo.UpdateStatus(ctx, orderID, constant.OrderStatusPaid); err != nil {
-			logger.Error(ctx, "failed to update order status to paid", err, map[string]interface{}{
-				"order_id": order.ID.String(),
-			})
-			return err
-		}
 
 		logger.Info(ctx, "payment success", map[string]interface{}{
 			"order_id": order.ID.String(),
 		})
 	} else {
+		cancelled, err := s.orderRepo.UpdateStatusIfCurrent(ctx, orderID, constant.OrderStatusPending, constant.OrderStatusCancelled)
+		if err != nil {
+			logger.Error(ctx, "failed to cancel order after payment failure", err, map[string]interface{}{
+				"order_id": order.ID.String(),
+			})
+			return err
+		}
+		if cancelled {
+			s.restoreStock(ctx, order.OrderItems)
+		}
+
+		payment, _ := s.orderRepo.FindPaymentByOrderID(ctx, orderID)
 		if payment != nil {
 			payment.Status = model.PaymentStatusFailed
 			if err := s.orderRepo.UpdatePayment(ctx, payment); err != nil {

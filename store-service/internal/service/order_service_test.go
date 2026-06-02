@@ -240,7 +240,7 @@ func TestOrderService_CancelOrder(t *testing.T) {
 					Status:     constant.OrderStatusPending,
 					OrderItems: []model.OrderItem{},
 				}, nil)
-				orderRepo.EXPECT().UpdateStatus(gomock.Any(), orderID, constant.OrderStatusCancelled).Return(nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusCancelled).Return(true, nil)
 			},
 		},
 		{
@@ -322,14 +322,13 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			name:      "success - paid to processing",
 			sellerID:  sellerID,
 			newStatus: constant.OrderStatusProcessing,
-			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, productRepo *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
 				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
-					ID:         orderID,
-					Status:     constant.OrderStatusPaid,
-					OrderItems: []model.OrderItem{{ProductID: productID, Quantity: 1}},
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusPaid,
 				}, nil)
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
-				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, StoreID: storeID}, nil)
 				orderRepo.EXPECT().UpdateStatus(gomock.Any(), orderID, constant.OrderStatusProcessing).Return(nil)
 			},
 		},
@@ -337,14 +336,13 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			name:      "success - processing to shipping",
 			sellerID:  sellerID,
 			newStatus: constant.OrderStatusShipping,
-			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, productRepo *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
 				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
-					ID:         orderID,
-					Status:     constant.OrderStatusProcessing,
-					OrderItems: []model.OrderItem{{ProductID: productID, Quantity: 1}},
+					ID:      orderID,
+					StoreID: storeID,
+					Status:  constant.OrderStatusProcessing,
 				}, nil)
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
-				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, StoreID: storeID}, nil)
 				orderRepo.EXPECT().UpdateStatus(gomock.Any(), orderID, constant.OrderStatusShipping).Return(nil)
 			},
 		},
@@ -403,15 +401,13 @@ func TestOrderService_UpdateOrderStatus(t *testing.T) {
 			name:      "forbidden - order not from seller's store",
 			sellerID:  sellerID,
 			newStatus: constant.OrderStatusProcessing,
-			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, productRepo *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
-				otherStoreID := uuid.New()
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
 				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{
-					ID:         orderID,
-					Status:     constant.OrderStatusPaid,
-					OrderItems: []model.OrderItem{{ProductID: productID, Quantity: 1}},
+					ID:      orderID,
+					StoreID: uuid.New(),
+					Status:  constant.OrderStatusPaid,
 				}, nil)
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), sellerID).Return(&model.Store{ID: storeID}, nil)
-				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, StoreID: otherStoreID}, nil)
 			},
 			wantErr:     true,
 			errContains: "forbidden",
@@ -546,19 +542,27 @@ func TestOrderService_ProcessPaymentResult(t *testing.T) {
 			success: true,
 			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, _ *mocks.MockStoreRepository) {
 				payment := &model.Payment{ID: uuid.New(), OrderID: orderID}
-				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID}, nil)
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID, Status: constant.OrderStatusPending}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusPaid).Return(true, nil)
 				orderRepo.EXPECT().FindPaymentByOrderID(gomock.Any(), orderID).Return(payment, nil)
 				orderRepo.EXPECT().UpdatePayment(gomock.Any(), gomock.Any()).Return(nil)
-				orderRepo.EXPECT().UpdateStatus(gomock.Any(), orderID, constant.OrderStatusPaid).Return(nil)
 			},
 		},
 		{
 			name:    "payment success - no payment record",
 			success: true,
 			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, _ *mocks.MockStoreRepository) {
-				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID}, nil)
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID, Status: constant.OrderStatusPending}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusPaid).Return(true, nil)
 				orderRepo.EXPECT().FindPaymentByOrderID(gomock.Any(), orderID).Return(nil, errors.New("not found"))
-				orderRepo.EXPECT().UpdateStatus(gomock.Any(), orderID, constant.OrderStatusPaid).Return(nil)
+			},
+		},
+		{
+			name:    "payment success - order no longer pending is ignored",
+			success: true,
+			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, _ *mocks.MockStoreRepository) {
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID, Status: constant.OrderStatusCancelled}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusPaid).Return(false, nil)
 			},
 		},
 		{
@@ -566,7 +570,8 @@ func TestOrderService_ProcessPaymentResult(t *testing.T) {
 			success: false,
 			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, _ *mocks.MockStoreRepository) {
 				payment := &model.Payment{ID: uuid.New(), OrderID: orderID}
-				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID}, nil)
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID, Status: constant.OrderStatusPending}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusCancelled).Return(true, nil)
 				orderRepo.EXPECT().FindPaymentByOrderID(gomock.Any(), orderID).Return(payment, nil)
 				orderRepo.EXPECT().UpdatePayment(gomock.Any(), gomock.Any()).Return(nil)
 			},
@@ -575,7 +580,8 @@ func TestOrderService_ProcessPaymentResult(t *testing.T) {
 			name:    "payment failed - no payment record",
 			success: false,
 			mockSetup: func(orderRepo *mocks.MockOrderRepository, _ *mocks.MockCartRepository, _ *mocks.MockProductRepository, _ *mocks.MockStoreRepository) {
-				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID}, nil)
+				orderRepo.EXPECT().FindByID(gomock.Any(), orderID).Return(&model.Order{ID: orderID, Status: constant.OrderStatusPending}, nil)
+				orderRepo.EXPECT().UpdateStatusIfCurrent(gomock.Any(), orderID, constant.OrderStatusPending, constant.OrderStatusCancelled).Return(true, nil)
 				orderRepo.EXPECT().FindPaymentByOrderID(gomock.Any(), orderID).Return(nil, errors.New("not found"))
 			},
 		},
