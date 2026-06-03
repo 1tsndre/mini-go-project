@@ -245,6 +245,9 @@
         "status": {
           "type": "string"
         },
+        "store_id": {
+          "type": "string"
+        },
         "total_amount": {
           "type": "number"
         },
@@ -2008,7 +2011,7 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Create an order from cart items with distributed lock for stock",
+        "description": "Create orders from cart items, grouped into one order per store (a single checkout may produce multiple orders), with distributed lock for stock. Returns the array of created orders.",
         "parameters": [
           {
             "description": "Checkout request",
@@ -2034,7 +2037,10 @@
                 {
                   "properties": {
                     "data": {
-                      "$ref": "#/definitions/Order"
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/Order"
+                      }
                     }
                   },
                   "type": "object"
