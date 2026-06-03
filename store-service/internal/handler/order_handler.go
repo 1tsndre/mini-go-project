@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"unicode/utf8"
 
+	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/pkg/response"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
@@ -15,12 +17,17 @@ import (
 	"github.com/google/uuid"
 )
 
-type OrderHandler struct {
-	service service.OrderService
+type PaymentStatusClient interface {
+	GetPaymentStatus(ctx context.Context, orderID string) (*model.PaymentStatusResponse, error)
 }
 
-func NewOrderHandler(service service.OrderService) *OrderHandler {
-	return &OrderHandler{service: service}
+type OrderHandler struct {
+	service service.OrderService
+	payment PaymentStatusClient
+}
+
+func NewOrderHandler(service service.OrderService, payment PaymentStatusClient) *OrderHandler {
+	return &OrderHandler{service: service, payment: payment}
 }
 
 func (h *OrderHandler) Checkout(w http.ResponseWriter, r *http.Request) {
@@ -178,4 +185,31 @@ func (h *OrderHandler) GetSellerOrders(w http.ResponseWriter, r *http.Request) {
 		TotalPages:  pagination.TotalPages(total, perPage),
 	}
 	response.Success(w, http.StatusOK, orders, meta)
+}
+
+func (h *OrderHandler) GetOrderPayment(w http.ResponseWriter, r *http.Request) {
+	userID, err := uuid.Parse(middleware.GetUserID(r.Context()))
+	if err != nil {
+		response.Failure(w, http.StatusUnauthorized, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeUnauthorized, Message: constant.MsgInvalidUser})
+		return
+	}
+
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		response.Failure(w, http.StatusBadRequest, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeValidation, Message: fmt.Sprintf(constant.MsgInvalidID, "order")})
+		return
+	}
+
+	if _, err := h.service.GetOrderByID(r.Context(), userID, id); err != nil {
+		serviceFailure(w, r, err)
+		return
+	}
+
+	paymentStatus, err := h.payment.GetPaymentStatus(r.Context(), id.String())
+	if err != nil {
+		logger.Error(r.Context(), constant.LogPaymentUnavailable, err)
+		response.Failure(w, http.StatusServiceUnavailable, middleware.BuildMeta(r), response.Error{Code: constant.ErrCodeInternal, Message: constant.MsgPaymentUnavailable})
+		return
+	}
+	response.Success(w, http.StatusOK, paymentStatus, middleware.BuildMeta(r))
 }

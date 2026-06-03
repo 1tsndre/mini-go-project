@@ -88,6 +88,7 @@ const (
 	MsgOrderFetchFailed       = "failed to fetch orders"
 	MsgOrderCancelFailed      = "failed to cancel order"
 	MsgOrderUpdateFailed      = "failed to update order status"
+	MsgPaymentUnavailable     = "payment service unavailable"
 
 	MsgReviewNotPurchased        = "you must purchase this product before reviewing"
 	MsgReviewExists              = "you have already reviewed this product"

@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package payment;
+
+option go_package = "github.com/1tsndre/mini-go-project/proto/payment";
+
+service PaymentService {
+  rpc GetPaymentStatus(GetPaymentStatusRequest) returns (GetPaymentStatusResponse);
+}
+
+message GetPaymentStatusRequest {
+  string order_id = 1;
+}
+
+message GetPaymentStatusResponse {
+  string payment_id = 1;
+  string order_id = 2;
+  string status = 3;
+  string amount = 4;
+  string method = 5;
+}

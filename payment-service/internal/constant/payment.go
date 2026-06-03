@@ -1,8 +1,9 @@
 package constant
 
 const (
-	StatusSuccess = "success"
-	StatusFailed  = "failed"
+	StatusSuccess  = "success"
+	StatusFailed   = "failed"
+	StatusNotFound = "not_found"
 
 	MethodMock = "mock"
 

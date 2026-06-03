@@ -13,6 +13,7 @@ import (
 	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/config"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
+	paymentclient "github.com/1tsndre/mini-go-project/store-service/internal/grpc/payment"
 	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
 	"github.com/1tsndre/mini-go-project/store-service/internal/nsq"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
@@ -87,13 +88,21 @@ func main() {
 
 	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)
 
+	paymentClient, err := paymentclient.NewClient(cfg.Payment.GRPCAddr)
+	if err != nil {
+		logger.Fatal(ctx, constant.LogPaymentClientFailed, err)
+	}
+	logger.Info(ctx, constant.LogPaymentClientReady, logger.Fields{
+		"addr": cfg.Payment.GRPCAddr,
+	})
+
 	handlers := router.Handlers{
 		Auth:     handler.NewAuthHandler(authService),
 		Store:    handler.NewStoreHandler(storeService, uploader),
 		Category: handler.NewCategoryHandler(categoryService),
 		Product:  handler.NewProductHandler(productService, uploader),
 		Cart:     handler.NewCartHandler(cartService),
-		Order:    handler.NewOrderHandler(orderService),
+		Order:    handler.NewOrderHandler(orderService, paymentClient),
 		Review:   handler.NewReviewHandler(reviewService),
 	}
 
@@ -138,6 +147,7 @@ func main() {
 
 	paymentConsumer.Stop()
 	nsqProducer.Stop()
+	paymentClient.Close()
 	redisClient.Close()
 	db.Close()
 
