@@ -52,7 +52,7 @@ Each layer communicates via interfaces, making the codebase testable and loosely
 - **Auth** — JWT access/refresh tokens, role-based access control (Admin, Buyer, Seller)
 - **Products** — Full CRUD, full-text search, filter by category/price, image upload
 - **Cart** — Redis-first with PostgreSQL fallback, persists across sessions
-- **Orders** — Checkout with distributed lock for stock consistency, status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing`
+- **Orders** — Checkout with distributed lock for stock consistency, split into one order per store (a single checkout may create multiple orders), status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing`
 - **Payment Pipeline** — Async via NSQ: order created → payment processed (mock) → status updated
 - **Reviews** — One review per purchased product, rating 1–5 with optional comment
 - **Rate Limiting** — Sliding window using Redis Sorted Sets
@@ -215,7 +215,7 @@ go run store-service/cmd/main.go
 ### Order
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| POST | `/api/v1/orders` | Checkout (create order) | Buyer |
+| POST | `/api/v1/orders` | Checkout (creates one order per store) | Buyer |
 | GET | `/api/v1/orders` | List buyer orders | Buyer |
 | GET | `/api/v1/orders/:id` | Get order detail | Buyer |
 | PUT | `/api/v1/orders/:id/cancel` | Cancel order | Buyer |
