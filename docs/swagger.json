@@ -1,0 +1,2819 @@
+{
+  "basePath": "/",
+  "definitions": {
+    "ApiError": {
+      "properties": {
+        "code": {
+          "description": "One of VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, INVALID_STATUS, INSUFFICIENT_STOCK, RATE_LIMITED, REQUEST_TIMEOUT, INTERNAL_ERROR",
+          "type": "string"
+        },
+        "field": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApiMeta": {
+      "properties": {
+        "pagination": {
+          "$ref": "#/definitions/Pagination"
+        },
+        "request_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Pagination": {
+      "properties": {
+        "current_page": {
+          "type": "integer"
+        },
+        "per_page": {
+          "type": "integer"
+        },
+        "total_items": {
+          "type": "integer"
+        },
+        "total_pages": {
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApiResponse": {
+      "properties": {
+        "data": {},
+        "errors": {
+          "items": {
+            "$ref": "#/definitions/ApiError"
+          },
+          "type": "array"
+        },
+        "meta": {
+          "$ref": "#/definitions/ApiMeta"
+        }
+      },
+      "type": "object"
+    },
+    "AddCartItemRequest": {
+      "properties": {
+        "product_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "product_id",
+        "quantity"
+      ],
+      "type": "object"
+    },
+    "CartItem": {
+      "properties": {
+        "image_url": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "price": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "product_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "subtotal": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Cart": {
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/CartItem"
+          },
+          "type": "array"
+        },
+        "total": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Category": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "CreateCategoryRequest": {
+      "properties": {
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "CreateProductRequest": {
+      "properties": {
+        "category_id": {
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "price": {
+          "description": "Greater than 0, below 10000000000000, at most 2 decimal places",
+          "type": "string"
+        },
+        "stock": {
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "category_id",
+        "name",
+        "price"
+      ],
+      "type": "object"
+    },
+    "CreateReviewRequest": {
+      "properties": {
+        "comment": {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        "rating": {
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "rating"
+      ],
+      "type": "object"
+    },
+    "CreateStoreRequest": {
+      "properties": {
+        "description": {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "LoginRequest": {
+      "properties": {
+        "email": {
+          "description": "Case-insensitive",
+          "type": "string"
+        },
+        "password": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "password"
+      ],
+      "type": "object"
+    },
+    "LogoutRequest": {
+      "properties": {
+        "refresh_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "refresh_token"
+      ],
+      "type": "object"
+    },
+    "OrderItem": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "price": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "product_id": {
+          "type": "string"
+        },
+        "quantity": {
+          "type": "integer"
+        },
+        "subtotal": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "CheckoutRequest": {
+      "properties": {
+        "shipping_address": {
+          "description": "Delivery address for the order (required)",
+          "maxLength": 500,
+          "type": "string"
+        }
+      },
+      "required": [
+        "shipping_address"
+      ],
+      "type": "object"
+    },
+    "Order": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/definitions/OrderItem"
+          },
+          "type": "array"
+        },
+        "payment": {
+          "$ref": "#/definitions/Payment"
+        },
+        "shipping_address": {
+          "type": "string"
+        },
+        "status": {
+          "description": "pending, paid, processing, shipping, shipped, completed or cancelled. A failed payment or a buyer cancellation (allowed up to processing) sets cancelled",
+          "type": "string"
+        },
+        "store_id": {
+          "type": "string"
+        },
+        "total_amount": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Payment": {
+      "properties": {
+        "amount": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "paid_at": {
+          "type": "string"
+        },
+        "status": {
+          "description": "pending, success, failed, cancelled (the buyer cancelled the order before the payment completed) or refunded (the buyer cancelled a paid order)",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Product": {
+      "properties": {
+        "category_id": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "image_url": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "price": {
+          "description": "Decimal as a string, e.g. \"12.5\"",
+          "type": "string"
+        },
+        "stock": {
+          "type": "integer"
+        },
+        "store_id": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "RefreshTokenRequest": {
+      "properties": {
+        "refresh_token": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "refresh_token"
+      ],
+      "type": "object"
+    },
+    "RegisterRequest": {
+      "properties": {
+        "email": {
+          "description": "Must be a valid email address. Case-insensitive; stored in lower case",
+          "format": "email",
+          "maxLength": 255,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "password": {
+          "description": "6 to 72 bytes (the bcrypt limit)",
+          "maxLength": 72,
+          "minLength": 6,
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "name",
+        "password"
+      ],
+      "type": "object"
+    },
+    "Review": {
+      "properties": {
+        "comment": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "product_id": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "integer"
+        },
+        "user_id": {
+          "type": "string"
+        },
+        "user_name": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "Store": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "logo_url": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        },
+        "user_id": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TokenPair": {
+      "properties": {
+        "access_token": {
+          "description": "Send as \"Authorization: Bearer <token>\"; expires after JWT_ACCESS_EXPIRY",
+          "type": "string"
+        },
+        "refresh_token": {
+          "description": "Works once: trade it at /api/v1/auth/refresh for a new pair",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "UpdateCartItemRequest": {
+      "properties": {
+        "quantity": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "quantity"
+      ],
+      "type": "object"
+    },
+    "UpdateCategoryRequest": {
+      "properties": {
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "UpdateOrderStatusRequest": {
+      "properties": {
+        "status": {
+          "description": "The next status in the flow paid \u2192 processing \u2192 shipping \u2192 shipped \u2192 completed",
+          "enum": [
+            "processing",
+            "shipping",
+            "shipped",
+            "completed"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "type": "object"
+    },
+    "UpdateProductRequest": {
+      "properties": {
+        "category_id": {
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        },
+        "price": {
+          "description": "Greater than 0, below 10000000000000, at most 2 decimal places",
+          "type": "string"
+        },
+        "stock": {
+          "maximum": 2147483647,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "UpdateStoreRequest": {
+      "properties": {
+        "description": {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 255,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "User": {
+      "properties": {
+        "created_at": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "PaymentStatus": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "payment_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
+    },
+    "FailureResponse": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/ApiResponse"
+        },
+        {
+          "properties": {
+            "errors": {
+              "items": {
+                "$ref": "#/definitions/ApiError"
+              },
+              "type": "array"
+            }
+          },
+          "type": "object"
+        }
+      ]
+    }
+  },
+  "host": "localhost:8080",
+  "info": {
+    "contact": {
+      "name": "Andre",
+      "url": "https://github.com/1tsndre"
+    },
+    "description": "E-Commerce REST API built with Go, gRPC, NSQ, PostgreSQL, and Redis\n\nEvery error uses the `ApiResponse` envelope with an `errors` array. Besides the responses listed for each endpoint:\n- endpoints that need a token return 401 `UNAUTHORIZED` when it is missing or invalid, and 403 `FORBIDDEN` when the user's role is not allowed;\n- rate-limited endpoints return 429 `RATE_LIMITED`;\n- any request can return 500 `INTERNAL_ERROR`, or 504 `REQUEST_TIMEOUT` when it takes longer than `APP_REQUEST_TIMEOUT`.",
+    "title": "Mini Go E-Commerce API",
+    "version": "1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "Returns service status. Used by load balancers and health probes.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "status": {
+                          "example": "ok",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          }
+        },
+        "summary": "Health check",
+        "tags": [
+          "Health"
+        ]
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "description": "Authenticate and get JWT token pair",
+        "parameters": [
+          {
+            "description": "Login request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LoginRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/TokenPair"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. JWT generation failure",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "503": {
+            "description": "Service Unavailable - Redis is down, so logins are refused",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "summary": "Login user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Revoke a refresh token, ending its session: it can no longer be used to refresh. Access tokens already issued stay valid until they expire. Revoking a token that is already revoked succeeds too.",
+        "parameters": [
+          {
+            "description": "Logout request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/LogoutRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "logged out",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized - not a valid refresh token",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - missing or invalid request body",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. the token store is unreachable",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "summary": "Log out",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "description": "Get a new token pair using a refresh token. A refresh token can be used once: refreshing revokes it, so a replayed or revoked token is answered with 401.",
+        "parameters": [
+          {
+            "description": "Refresh request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RefreshTokenRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/TokenPair"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized - not a valid refresh token, or one already used or revoked",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - missing or invalid request body",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. JWT generation failure or the token store is unreachable",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "summary": "Refresh token",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "description": "Register a new user account as a buyer",
+        "parameters": [
+          {
+            "description": "Register request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RegisterRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/User"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "409": {
+            "$ref": "#/responses/Conflict"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "Service Unavailable - Redis is down; register shares the login rate limit, so it is refused too",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "summary": "Register a new user",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/cart": {
+      "get": {
+        "description": "Get the authenticated buyer's cart",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Cart"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get cart",
+        "tags": [
+          "Cart"
+        ]
+      }
+    },
+    "/api/v1/cart/items": {
+      "post": {
+        "description": "Add a product to the buyer's cart",
+        "parameters": [
+          {
+            "description": "Add cart item",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/AddCartItemRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Cart"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error or INSUFFICIENT_STOCK",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Add item to cart",
+        "tags": [
+          "Cart"
+        ]
+      }
+    },
+    "/api/v1/cart/items/{product_id}": {
+      "delete": {
+        "description": "Remove a product from the cart",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Cart"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Remove item from cart",
+        "tags": [
+          "Cart"
+        ]
+      },
+      "put": {
+        "description": "Update the quantity of a product in the cart",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "product_id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Update quantity",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateCartItemRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Cart"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error or INSUFFICIENT_STOCK",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update cart item quantity",
+        "tags": [
+          "Cart"
+        ]
+      }
+    },
+    "/api/v1/categories": {
+      "get": {
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/definitions/Category"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "summary": "List all categories",
+        "tags": [
+          "Category"
+        ]
+      },
+      "post": {
+        "description": "Admin creates a new product category",
+        "parameters": [
+          {
+            "description": "Create category",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateCategoryRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Category"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "409": {
+            "description": "Conflict - category name already exists",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create category",
+        "tags": [
+          "Category"
+        ]
+      }
+    },
+    "/api/v1/categories/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "description": "Category UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "category deleted",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid category ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "409": {
+            "description": "Conflict \u2014 category is still used by products",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete category",
+        "tags": [
+          "Category"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "description": "Category UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Update category",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateCategoryRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Category"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid id or name longer than 255 characters",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "409": {
+            "description": "Conflict \u2014 category name already exists",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update category",
+        "tags": [
+          "Category"
+        ]
+      }
+    },
+    "/api/v1/orders": {
+      "get": {
+        "description": "Get paginated list of the authenticated user's orders",
+        "parameters": [
+          {
+            "default": 1,
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "type": "integer"
+          },
+          {
+            "default": 10,
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/definitions/Order"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List my orders",
+        "tags": [
+          "Order"
+        ]
+      },
+      "post": {
+        "description": "Create orders from cart items, grouped into one order per store (a single checkout may produce multiple orders), reserving the stock. Returns the array of created orders.",
+        "parameters": [
+          {
+            "description": "Checkout request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CheckoutRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/Order"
+                      }
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error, empty cart, or INSUFFICIENT_STOCK",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Checkout cart",
+        "tags": [
+          "Order"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}": {
+      "get": {
+        "description": "Get a single order with items and payment info",
+        "parameters": [
+          {
+            "description": "Order UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Order"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid order ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 no such order, or it belongs to another user",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get order detail",
+        "tags": [
+          "Order"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/cancel": {
+      "put": {
+        "description": "Cancel order (only allowed before shipping status)",
+        "parameters": [
+          {
+            "description": "Order UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "order cancelled",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid order ID, or INVALID_STATUS when the order can no longer be cancelled",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Not Found \u2014 no such order, or it belongs to another user",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Cancel an order",
+        "tags": [
+          "Order"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/status": {
+      "put": {
+        "description": "Seller updates order status (paid \u2192 processing \u2192 shipping \u2192 shipped \u2192 completed)",
+        "parameters": [
+          {
+            "description": "Order UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "New status",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateOrderStatusRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "order status updated",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error, or INVALID_STATUS when the transition is not allowed",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 the user is not a seller",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 no such order, or it belongs to another store",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update order status",
+        "tags": [
+          "Order"
+        ]
+      }
+    },
+    "/api/v1/products": {
+      "get": {
+        "description": "Get products with search, filter, pagination and sorting",
+        "parameters": [
+          {
+            "default": 1,
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "type": "integer"
+          },
+          {
+            "default": 10,
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "type": "integer"
+          },
+          {
+            "description": "Search by name/description",
+            "in": "query",
+            "name": "search",
+            "type": "string"
+          },
+          {
+            "description": "Filter by category UUID (must be a valid UUID)",
+            "in": "query",
+            "name": "category_id",
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "description": "Filter by store UUID (must be a valid UUID)",
+            "in": "query",
+            "name": "store_id",
+            "type": "string",
+            "format": "uuid"
+          },
+          {
+            "description": "Minimum price",
+            "in": "query",
+            "name": "min_price",
+            "type": "string"
+          },
+          {
+            "description": "Maximum price",
+            "in": "query",
+            "name": "max_price",
+            "type": "string"
+          },
+          {
+            "description": "Sort by field",
+            "enum": [
+              "price",
+              "name",
+              "created_at"
+            ],
+            "in": "query",
+            "name": "sort_by",
+            "type": "string"
+          },
+          {
+            "description": "Sort order",
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "in": "query",
+            "name": "sort_order",
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/definitions/Product"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 category_id or store_id is not a valid UUID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "summary": "List products",
+        "tags": [
+          "Product"
+        ]
+      },
+      "post": {
+        "description": "Create a product in the seller's store",
+        "parameters": [
+          {
+            "description": "Create product request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateProductRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Product"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a new product",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/api/v1/products/{id}": {
+      "delete": {
+        "description": "Delete a product (seller only, must be product owner)",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "product deleted",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "409": {
+            "description": "Conflict \u2014 product is referenced by orders or carts",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not product owner",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Delete a product",
+        "tags": [
+          "Product"
+        ]
+      },
+      "get": {
+        "description": "Get a single product by its UUID",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Product"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid product ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "summary": "Get product by ID",
+        "tags": [
+          "Product"
+        ]
+      },
+      "put": {
+        "description": "Update product details (seller only, must be product owner)",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Update product request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateProductRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Product"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid name, price, stock or category_id",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 not product owner",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 product or seller store not found",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update a product",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/api/v1/products/{id}/image": {
+      "post": {
+        "consumes": [
+          "multipart/form-data"
+        ],
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Product image",
+            "in": "formData",
+            "name": "image",
+            "required": true,
+            "type": "file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Product"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "413": {
+            "$ref": "#/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request - invalid product ID or invalid image file",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden - not product owner",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Product not found",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Upload product image",
+        "tags": [
+          "Product"
+        ]
+      }
+    },
+    "/api/v1/products/{id}/reviews": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "default": 1,
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "type": "integer"
+          },
+          {
+            "default": 10,
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/definitions/Review"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid product ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "summary": "List product reviews",
+        "tags": [
+          "Review"
+        ]
+      },
+      "post": {
+        "description": "Buyer reviews a product (must have purchased, one review per product)",
+        "parameters": [
+          {
+            "description": "Product UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Review",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateReviewRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Review"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "$ref": "#/responses/BadRequest"
+          },
+          "403": {
+            "description": "Forbidden",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "409": {
+            "$ref": "#/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a product review",
+        "tags": [
+          "Review"
+        ]
+      }
+    },
+    "/api/v1/seller/orders": {
+      "get": {
+        "description": "Get orders for products in the seller's store",
+        "parameters": [
+          {
+            "default": 1,
+            "description": "Page number",
+            "in": "query",
+            "name": "page",
+            "type": "integer"
+          },
+          {
+            "default": 10,
+            "description": "Items per page",
+            "in": "query",
+            "name": "per_page",
+            "type": "integer"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/definitions/Order"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 seller has no store",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "List seller orders",
+        "tags": [
+          "Order"
+        ]
+      }
+    },
+    "/api/v1/stores": {
+      "post": {
+        "description": "Buyer creates a store and becomes a seller",
+        "parameters": [
+          {
+            "description": "Create store",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/CreateStoreRequest"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Created",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "409": {
+            "description": "Conflict \u2014 user already has a store",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Create a store",
+        "tags": [
+          "Store"
+        ]
+      }
+    },
+    "/api/v1/stores/me": {
+      "get": {
+        "description": "The store of the authenticated user, of any role; a user who has not opened a store yet gets a 404",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "404": {
+            "description": "Not Found \u2014 the user has no store",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get my store",
+        "tags": [
+          "Store"
+        ]
+      }
+    },
+    "/api/v1/stores/{id}": {
+      "get": {
+        "parameters": [
+          {
+            "description": "Store UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid store ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          }
+        },
+        "summary": "Get store by ID",
+        "tags": [
+          "Store"
+        ]
+      },
+      "put": {
+        "parameters": [
+          {
+            "description": "Store UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Update store",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/UpdateStoreRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 validation error",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 not the store owner",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Update store",
+        "tags": [
+          "Store"
+        ]
+      }
+    },
+    "/api/v1/stores/{id}/logo": {
+      "post": {
+        "consumes": [
+          "multipart/form-data"
+        ],
+        "parameters": [
+          {
+            "description": "Store UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "description": "Logo image",
+            "in": "formData",
+            "name": "logo",
+            "required": true,
+            "type": "file"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "413": {
+            "$ref": "#/responses/PayloadTooLarge"
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid store ID or invalid file",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "401": {
+            "$ref": "#/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden \u2014 not the store owner",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "$ref": "#/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/responses/InternalServerError"
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Upload store logo",
+        "tags": [
+          "Store"
+        ]
+      }
+    },
+    "/api/v1/orders/{id}/payment": {
+      "get": {
+        "description": "Get the payment-processor status for an order, queried synchronously from payment-service over gRPC.",
+        "parameters": [
+          {
+            "description": "Order UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/PaymentStatus"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid order ID",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 no such order, or it belongs to another user",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          },
+          "429": {
+            "$ref": "#/responses/TooManyRequests"
+          },
+          "503": {
+            "description": "Service Unavailable \u2014 payment-service could not be reached",
+            "schema": {
+              "$ref": "#/definitions/FailureResponse"
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get order payment status",
+        "tags": [
+          "Order"
+        ]
+      }
+    }
+  },
+  "securityDefinitions": {
+    "BearerAuth": {
+      "description": "Enter \"Bearer {token}\"",
+      "in": "header",
+      "name": "Authorization",
+      "type": "apiKey"
+    }
+  },
+  "swagger": "2.0",
+  "tags": [
+    {
+      "description": "Authentication endpoints (register, login, refresh)",
+      "name": "Auth"
+    },
+    {
+      "description": "Store management (create, update, upload logo)",
+      "name": "Store"
+    },
+    {
+      "description": "Category management (admin only for CUD)",
+      "name": "Category"
+    },
+    {
+      "description": "Product CRUD with search, filter, pagination, and sorting",
+      "name": "Product"
+    },
+    {
+      "description": "Shopping cart (Redis + PostgreSQL backup)",
+      "name": "Cart"
+    },
+    {
+      "description": "Order management",
+      "name": "Order"
+    },
+    {
+      "description": "Product reviews (buyer only, must have purchased)",
+      "name": "Review"
+    }
+  ],
+  "responses": {
+    "BadRequest": {
+      "description": "Bad Request",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "Unauthorized": {
+      "description": "Unauthorized",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "TooManyRequests": {
+      "description": "Too Many Requests",
+      "headers": {
+        "X-RateLimit-Limit": {
+          "description": "Request limit per minute",
+          "type": "integer"
+        },
+        "X-RateLimit-Remaining": {
+          "description": "Remaining requests in the current window",
+          "type": "integer"
+        },
+        "X-RateLimit-Reset": {
+          "description": "Unix timestamp when the rate limit resets",
+          "type": "integer"
+        }
+      },
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "Conflict": {
+      "description": "Conflict",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "InternalServerError": {
+      "description": "Internal Server Error",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "NotFound": {
+      "description": "Not Found",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    },
+    "PayloadTooLarge": {
+      "description": "Payload Too Large \u2014 upload exceeds UPLOAD_MAX_SIZE",
+      "schema": {
+        "$ref": "#/definitions/FailureResponse"
+      }
+    }
+  },
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ]
+}
