@@ -11,13 +11,18 @@ import (
 )
 
 type Config struct {
-	App    AppConfig
-	DB     DBConfig
-	Redis  RedisConfig
-	NSQ    NSQConfig
-	JWT    JWTConfig
-	Rate   RateConfig
-	Upload UploadConfig
+	App     AppConfig
+	DB      DBConfig
+	Redis   RedisConfig
+	NSQ     NSQConfig
+	JWT     JWTConfig
+	Rate    RateConfig
+	Upload  UploadConfig
+	Payment PaymentConfig
+}
+
+type PaymentConfig struct {
+	GRPCAddr string
 }
 
 type AppConfig struct {
@@ -125,6 +130,7 @@ func Load() (*Config, error) {
 	v.SetDefault("RATE_LIMIT_LOGIN", 10)
 	v.SetDefault("UPLOAD_MAX_SIZE", 5242880)
 	v.SetDefault("UPLOAD_DIR", "./uploads")
+	v.SetDefault("PAYMENT_GRPC_ADDR", "localhost:50051")
 
 	_ = v.ReadInConfig()
 
@@ -204,6 +210,9 @@ func Load() (*Config, error) {
 		Upload: UploadConfig{
 			MaxSize: v.GetInt64("UPLOAD_MAX_SIZE"),
 			Dir:     v.GetString("UPLOAD_DIR"),
+		},
+		Payment: PaymentConfig{
+			GRPCAddr: v.GetString("PAYMENT_GRPC_ADDR"),
 		},
 	}, nil
 }

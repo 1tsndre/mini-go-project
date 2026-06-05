@@ -476,6 +476,26 @@
         }
       },
       "type": "object"
+    },
+    "PaymentStatus": {
+      "type": "object",
+      "properties": {
+        "amount": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "payment_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      }
     }
   },
   "host": "localhost:8080",
@@ -4596,6 +4616,73 @@
         "summary": "Upload store logo",
         "tags": [
           "Store"
+        ]
+      }
+    },
+    "/orders/{id}/payment": {
+      "get": {
+        "description": "Get the payment-processor status for an order, queried synchronously from payment-service over gRPC.",
+        "parameters": [
+          {
+            "description": "Order UUID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/PaymentStatus"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get order payment status",
+        "tags": [
+          "Order"
         ]
       }
     }

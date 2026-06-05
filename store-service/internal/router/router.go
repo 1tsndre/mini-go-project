@@ -90,6 +90,7 @@ func NewRouter(
 	mux.Handle("GET /api/v1/orders", middleware.Chain(http.HandlerFunc(handlers.Order.GetOrders), authMw, buyerMw, authRate))
 	mux.Handle("GET /api/v1/orders/{id}", middleware.Chain(http.HandlerFunc(handlers.Order.GetOrder), authMw, buyerMw, authRate))
 	mux.Handle("PUT /api/v1/orders/{id}/cancel", middleware.Chain(http.HandlerFunc(handlers.Order.CancelOrder), authMw, buyerMw, authRate))
+	mux.Handle("GET /api/v1/orders/{id}/payment", middleware.Chain(http.HandlerFunc(handlers.Order.GetOrderPayment), authMw, buyerMw, authRate))
 
 	mux.Handle("GET /api/v1/seller/orders", middleware.Chain(http.HandlerFunc(handlers.Order.GetSellerOrders), authMw, sellerMw, authRate))
 	mux.Handle("PUT /api/v1/orders/{id}/status", middleware.Chain(http.HandlerFunc(handlers.Order.UpdateOrderStatus), authMw, sellerMw, authRate))

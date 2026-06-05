@@ -33,8 +33,15 @@ func (h *PaymentGRPCHandler) ProcessPayment(ctx context.Context, req *pb.Process
 }
 
 func (h *PaymentGRPCHandler) GetPaymentStatus(ctx context.Context, req *pb.GetPaymentStatusRequest) (*pb.GetPaymentStatusResponse, error) {
+	rec, ok := h.service.GetStatus(req.OrderId)
+	if !ok {
+		return &pb.GetPaymentStatusResponse{OrderId: req.OrderId, Status: "not_found"}, nil
+	}
 	return &pb.GetPaymentStatusResponse{
-		OrderId: req.OrderId,
-		Status:  "mock",
+		PaymentId: rec.PaymentID,
+		OrderId:   rec.OrderID,
+		Status:    rec.Status,
+		Amount:    rec.Amount,
+		Method:    rec.Method,
 	}, nil
 }
