@@ -1,11 +1,11 @@
 #!/bin/bash
 # =============================================================================
 # QA Test Script - mini-go-project
-# 81 test case: Health, Auth, Store, Category, Product, Cart, Order, Review, Error
+# 82 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split), Review, Error
 # Usage: ./qa_test.sh [BASE_URL]
 #
-# Rate limit login (10/min) dikelola otomatis via file counter.
-# Script bisa dijalankan kapan saja tanpa perlu tunggu manual.
+# Login rate limit (10/min) is handled automatically via a file counter.
+# The script can be run at any time without manual waiting.
 # =============================================================================
 
 BASE_URL="${1:-http://localhost:8080}"
@@ -20,13 +20,13 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 RESET='\033[0m'
 
-# Temp files — bersih otomatis saat script selesai
+# Temp files — cleaned up automatically when the script finishes
 RESP_FILE=$(mktemp)
 RATE_FILE=$(mktemp)
 echo "0" > "$RATE_FILE"
 trap 'rm -f "$RESP_FILE" "$RATE_FILE"' EXIT
 
-LOGIN_RATE_LIMIT=9   # trigger wait setelah 9 call (margin 1)
+LOGIN_RATE_LIMIT=9   # trigger wait after 9 calls (margin of 1)
 
 # =============================================================================
 # Helpers
@@ -103,10 +103,21 @@ do_delete() {
     -H "Authorization: Bearer $token"
 }
 
-# do_auth_post: wrapper rate-limit-aware untuk /auth/login dan /auth/register
-# Menggunakan file counter agar counter persist lintas subshell.
-# Panggil dengan redirect: do_auth_post "path" "body" > "$RESP_FILE"
-# lalu: parse_response "$(cat "$RESP_FILE")"
+wait_order_terminal() {
+  local oid="$1" token="$2" st=""
+  for _ in $(seq 1 16); do
+    sleep 0.5
+    parse_response "$(do_get "/api/v1/orders/$oid" "$token")"
+    st=$(json_get "$RESP_BODY" "data.status")
+    [ "$st" != "pending" ] && break
+  done
+  echo "$st"
+}
+
+# do_auth_post: rate-limit-aware wrapper for /auth/login and /auth/register
+# Uses a file counter so the counter persists across subshells.
+# Call with redirect: do_auth_post "path" "body" > "$RESP_FILE"
+# then: parse_response "$(cat "$RESP_FILE")"
 do_auth_post() {
   local path="$1" body="$2"
   local count
@@ -115,9 +126,9 @@ do_auth_post() {
   if [ "$count" -ge "$LOGIN_RATE_LIMIT" ]; then
     {
       echo ""
-      echo -e "  ${YELLOW}[Rate limit] Menunggu 65s agar bucket login reset...${RESET}"
+      echo -e "  ${YELLOW}[Rate limit] Waiting 65s for the login bucket to reset...${RESET}"
       for i in $(seq 65 -1 1); do
-        printf "\r  ${YELLOW}  Reset dalam %2ds...  ${RESET}" "$i"
+        printf "\r  ${YELLOW}  Resetting in %2ds...  ${RESET}" "$i"
         sleep 1
       done
       printf "\r  ${GREEN}  Rate limit reset.          ${RESET}\n"
@@ -162,8 +173,8 @@ section() {
 abort_if_empty() {
   local val="$1" name="$2"
   if [ -z "$val" ]; then
-    echo -e "\n${RED}FATAL: $name kosong — setup gagal.${RESET}"
-    echo -e "${RED}Kemungkinan rate limit dari run sebelumnya sudah aktif.${RESET}"
+    echo -e "\n${RED}FATAL: $name is empty — setup failed.${RESET}"
+    echo -e "${RED}A rate limit from a previous run is likely still active.${RESET}"
     exit 2
   fi
 }
@@ -173,20 +184,20 @@ abort_if_empty() {
 # =============================================================================
 echo -e "${BOLD}QA Test Suite - mini-go-project${RESET}"
 echo "Base URL  : $BASE_URL"
-echo "Dimulai   : $(date '+%H:%M:%S')"
+echo "Started   : $(date '+%H:%M:%S')"
 echo ""
 
 RAW=$(do_get "/api/v1/categories")
 parse_response "$RAW"
 if [ "$RESP_CODE" != "200" ]; then
-  echo -e "${RED}ERROR: Service tidak berjalan di $BASE_URL${RESET}"
-  echo "Jalankan: go run store-service/cmd/main.go"
+  echo -e "${RED}ERROR: Service is not running at $BASE_URL${RESET}"
+  echo "Run: go run store-service/cmd/main.go"
   exit 1
 fi
 echo -e "${GREEN}Service OK${RESET}"
 
-# Pre-flight: cek apakah login sudah rate-limited sebelum mulai
-echo -n "Cek rate limit status... "
+# Pre-flight: check whether login is already rate-limited before starting
+echo -n "Checking rate limit status... "
 PREFLIGHT_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/v1/auth/login" \
   -H "Content-Type: application/json" --data-binary '{"email":"x","password":"x"}')
 if [ "$PREFLIGHT_CODE" = "429" ]; then
@@ -198,16 +209,16 @@ else
 fi
 
 # =============================================================================
-# SETUP: buat user, store, category, product
+# SETUP: create user, store, category, product
 # =============================================================================
 echo ""
-echo "Menyiapkan fixtures..."
+echo "Preparing fixtures..."
 TIMESTAMP=$(date +%s)
 BUYER_EMAIL="qa_buyer_${TIMESTAMP}@test.com"
 BUYER2_EMAIL="qa_buyer2_${TIMESTAMP}@test.com"
 REG_EMAIL="qa_reg_${TIMESTAMP}@test.com"
 
-# Login admin [2]
+# Admin login [2]
 do_auth_post "/api/v1/auth/login" \
   '{"email":"admin@example.com","password":"admin123"}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
@@ -218,7 +229,7 @@ abort_if_empty "$ADMIN_TOKEN" "ADMIN_TOKEN"
 do_auth_post "/api/v1/auth/register" \
   "{\"email\":\"$BUYER_EMAIL\",\"password\":\"pass123\",\"name\":\"QA Buyer\"}" > "$RESP_FILE"
 
-# Login buyer, simpan refresh_token [4]
+# Buyer login, save refresh_token [4]
 do_auth_post "/api/v1/auth/login" \
   "{\"email\":\"$BUYER_EMAIL\",\"password\":\"pass123\"}" > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
@@ -226,7 +237,7 @@ BUYER_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
 BUYER_REFRESH=$(json_get "$RESP_BODY" "data.refresh_token")
 abort_if_empty "$BUYER_TOKEN" "BUYER_TOKEN"
 
-# Create store (bukan loginRate)
+# Create store (not loginRate)
 parse_response "$(do_post "/api/v1/stores" \
   "{\"name\":\"QA Store $TIMESTAMP\",\"description\":\"Test\"}" "$BUYER_TOKEN")"
 STORE_ID=$(json_get "$RESP_BODY" "data.id")
@@ -243,14 +254,14 @@ abort_if_empty "$SELLER_TOKEN" "SELLER_TOKEN"
 do_auth_post "/api/v1/auth/register" \
   "{\"email\":\"$BUYER2_EMAIL\",\"password\":\"pass123\",\"name\":\"QA Buyer2\"}" > "$RESP_FILE"
 
-# Login buyer2 [7]
+# Buyer2 login [7]
 do_auth_post "/api/v1/auth/login" \
   "{\"email\":\"$BUYER2_EMAIL\",\"password\":\"pass123\"}" > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 BUYER2_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
 abort_if_empty "$BUYER2_TOKEN" "BUYER2_TOKEN"
 
-# Category & product (bukan loginRate)
+# Category & product (not loginRate)
 parse_response "$(do_post "/api/v1/categories" \
   "{\"name\":\"QA Cat $TIMESTAMP\"}" "$ADMIN_TOKEN")"
 CAT_ID=$(json_get "$RESP_BODY" "data.id")
@@ -262,11 +273,38 @@ parse_response "$(do_post "/api/v1/products" \
 PROD_ID=$(json_get "$RESP_BODY" "data.id")
 abort_if_empty "$PROD_ID" "PROD_ID"
 
+SELLER2_EMAIL="qa_seller2_${TIMESTAMP}@test.com"
+do_auth_post "/api/v1/auth/register" \
+  "{\"email\":\"$SELLER2_EMAIL\",\"password\":\"pass123\",\"name\":\"QA Seller2\"}" > "$RESP_FILE"
+do_auth_post "/api/v1/auth/login" \
+  "{\"email\":\"$SELLER2_EMAIL\",\"password\":\"pass123\"}" > "$RESP_FILE"
+parse_response "$(cat "$RESP_FILE")"
+SELLER2_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
+abort_if_empty "$SELLER2_TOKEN" "SELLER2_TOKEN"
+
+parse_response "$(do_post "/api/v1/stores" \
+  "{\"name\":\"QA Store2 $TIMESTAMP\",\"description\":\"Test2\"}" "$SELLER2_TOKEN")"
+STORE2_ID=$(json_get "$RESP_BODY" "data.id")
+abort_if_empty "$STORE2_ID" "STORE2_ID"
+
+do_auth_post "/api/v1/auth/login" \
+  "{\"email\":\"$SELLER2_EMAIL\",\"password\":\"pass123\"}" > "$RESP_FILE"
+parse_response "$(cat "$RESP_FILE")"
+SELLER2_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
+
+parse_response "$(do_post "/api/v1/products" \
+  "{\"name\":\"QA Product2 $TIMESTAMP\",\"description\":\"Test2\",\"price\":\"250000.00\",\"stock\":20,\"category_id\":\"$CAT_ID\"}" \
+  "$SELLER2_TOKEN")"
+PROD2_ID=$(json_get "$RESP_BODY" "data.id")
+abort_if_empty "$PROD2_ID" "PROD2_ID"
+
 COUNT_NOW=$(cat "$RATE_FILE")
 echo "  Buyer     : $BUYER_EMAIL"
 echo "  Store     : $STORE_ID"
+echo "  Store2    : $STORE2_ID"
 echo "  Category  : $CAT_ID"
 echo "  Product   : $PROD_ID"
+echo "  Product2  : $PROD2_ID"
 echo "  loginRate : ${COUNT_NOW}/10"
 
 # =============================================================================
@@ -289,32 +327,32 @@ do_auth_post "/api/v1/auth/register" \
 parse_response "$(cat "$RESP_FILE")"
 assert "Register valid → 201" "201" "$RESP_CODE"
 
-# Register email invalid [9 → RATE_FILE=9, trigger wait di call berikutnya]
+# Register invalid email [9 → RATE_FILE=9, triggers wait on the next call]
 do_auth_post "/api/v1/auth/register" \
-  '{"email":"bukan-email","password":"pass123","name":"Test"}' > "$RESP_FILE"
+  '{"email":"not-an-email","password":"pass123","name":"Test"}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Register email invalid → 400" "400" "$RESP_CODE" "field" "email" "$FIELD"
+assert "Register invalid email → 400" "400" "$RESP_CODE" "field" "email" "$FIELD"
 
-# Register password pendek [count=9 → trigger wait dulu]
+# Register short password [count=9 → triggers wait first]
 do_auth_post "/api/v1/auth/register" \
   '{"email":"short@test.com","password":"abc","name":"Test"}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Register password pendek → 400" "400" "$RESP_CODE" "field" "password" "$FIELD"
+assert "Register short password → 400" "400" "$RESP_CODE" "field" "password" "$FIELD"
 
-# Register semua kosong
+# Register all empty
 do_auth_post "/api/v1/auth/register" '{}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 ERR_COUNT=$(json_len "$RESP_BODY" "errors")
-assert "Register kosong → 400 (3 field errors)" "400" "$RESP_CODE" "error count" "3" "$ERR_COUNT"
+assert "Register empty → 400 (3 field errors)" "400" "$RESP_CODE" "error count" "3" "$ERR_COUNT"
 
-# Register name kosong (email+password valid)
+# Register empty name (valid email+password)
 do_auth_post "/api/v1/auth/register" \
   '{"email":"noname@test.com","password":"pass123"}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Register name kosong → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
+assert "Register empty name → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
 
 # Register duplicate
 do_auth_post "/api/v1/auth/register" \
@@ -323,18 +361,18 @@ parse_response "$(cat "$RESP_FILE")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Register duplicate → 409 CONFLICT" "409" "$RESP_CODE" "error code" "CONFLICT" "$CODE"
 
-# Login email tidak terdaftar
+# Login unregistered email
 do_auth_post "/api/v1/auth/login" \
   '{"email":"notexist@qa.com","password":"pass123"}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
-assert "Login email tidak terdaftar → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
+assert "Login unregistered email → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
 
-# Login email + password kosong
+# Login empty email + password
 do_auth_post "/api/v1/auth/login" '{}' > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 ERR_COUNT=$(json_len "$RESP_BODY" "errors")
-assert "Login kosong → 400 (2 field errors)" "400" "$RESP_CODE" "error count" "2" "$ERR_COUNT"
+assert "Login empty → 400 (2 field errors)" "400" "$RESP_CODE" "error count" "2" "$ERR_COUNT"
 
 # Login valid
 do_auth_post "/api/v1/auth/login" \
@@ -342,25 +380,25 @@ do_auth_post "/api/v1/auth/login" \
 parse_response "$(cat "$RESP_FILE")"
 TOKEN_CHECK=$(json_get "$RESP_BODY" "data.access_token")
 assert "Login valid → 200 + access_token" "200" "$RESP_CODE" \
-  "access_token ada" "true" "$([ -n "$TOKEN_CHECK" ] && echo true || echo false)"
+  "access_token present" "true" "$([ -n "$TOKEN_CHECK" ] && echo true || echo false)"
 
-# Login password salah
+# Login wrong password
 do_auth_post "/api/v1/auth/login" \
   "{\"email\":\"$BUYER_EMAIL\",\"password\":\"wrongpass\"}" > "$RESP_FILE"
 parse_response "$(cat "$RESP_FILE")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
-assert "Login password salah → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
+assert "Login wrong password → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
 
-# Refresh token (authRate 120/min — tidak pakai do_auth_post)
+# Refresh token (authRate 120/min — does not use do_auth_post)
 parse_response "$(do_post "/api/v1/auth/refresh" "{\"refresh_token\":\"$BUYER_REFRESH\"}")"
 NEW_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
-assert "Refresh token → 200 + token baru" "200" "$RESP_CODE" \
-  "access_token ada" "true" "$([ -n "$NEW_TOKEN" ] && echo true || echo false)"
+assert "Refresh token → 200 + new token" "200" "$RESP_CODE" \
+  "access_token present" "true" "$([ -n "$NEW_TOKEN" ] && echo true || echo false)"
 
-# Refresh tanpa token
+# Refresh without token
 parse_response "$(do_post "/api/v1/auth/refresh" '{}')"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Refresh tanpa token → 400" "400" "$RESP_CODE" "field" "refresh_token" "$FIELD"
+assert "Refresh without token → 400" "400" "$RESP_CODE" "field" "refresh_token" "$FIELD"
 
 # =============================================================================
 # 2. STORE
@@ -370,17 +408,17 @@ section "2. STORE"
 assert "Create store (buyer → seller) → OK" "true" \
   "$([ -n "$STORE_ID" ] && echo true || echo false)"
 
-# Create store tanpa name → 400
+# Create store without name → 400
 parse_response "$(do_post "/api/v1/stores" '{"name":""}' "$BUYER2_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Create store name kosong → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
+assert "Create store empty name → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
 
 parse_response "$(do_get "/api/v1/stores/$STORE_ID")"
 FETCHED_ID=$(json_get "$RESP_BODY" "data.id")
 assert "Get store → 200" "200" "$RESP_CODE" "id match" "$STORE_ID" "$FETCHED_ID"
 
 # Get store invalid UUID → 400
-parse_response "$(do_get "/api/v1/stores/bukan-uuid")"
+parse_response "$(do_get "/api/v1/stores/not-a-uuid")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Get store invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
@@ -396,7 +434,7 @@ assert "Update store (seller) → 200" "200" "$RESP_CODE" "name" "QA Store Updat
 RAW=$(curl -s -w "\n%{http_code}" -X PUT "$BASE_URL/api/v1/stores/$STORE_ID" \
   -H "Content-Type: application/json" --data-binary '{"name":"Hack"}')
 parse_response "$RAW"
-assert "Update store tanpa auth → 401" "401" "$RESP_CODE"
+assert "Update store without auth → 401" "401" "$RESP_CODE"
 
 # =============================================================================
 # 3. CATEGORY
@@ -406,10 +444,10 @@ section "3. CATEGORY"
 assert "Create category (admin) → OK" "true" \
   "$([ -n "$CAT_ID" ] && echo true || echo false)"
 
-# Create category name kosong → 400
+# Create category without name → 400
 parse_response "$(do_post "/api/v1/categories" '{"name":""}' "$ADMIN_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Create category name kosong → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
+assert "Create category empty name → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
 
 parse_response "$(do_post "/api/v1/categories" \
   "{\"name\":\"QA Cat $TIMESTAMP\"}" "$ADMIN_TOKEN")"
@@ -417,7 +455,7 @@ CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Create category duplicate → 409" "409" "$RESP_CODE" "error code" "CONFLICT" "$CODE"
 
 parse_response "$(do_post "/api/v1/categories" '{"name":"Unauth Cat"}')"
-assert "Create category tanpa auth → 401" "401" "$RESP_CODE"
+assert "Create category without auth → 401" "401" "$RESP_CODE"
 
 parse_response "$(do_post "/api/v1/categories" '{"name":"Buyer Cat"}' "$BUYER2_TOKEN")"
 assert "Create category (buyer token) → 403" "403" "$RESP_CODE"
@@ -428,7 +466,7 @@ DATA_TYPE=$(python3 -c \
 assert "Get categories → 200 (array, no raw DB error)" "200" "$RESP_CODE" "data type" "list" "$DATA_TYPE"
 
 # Update category invalid UUID → 400
-parse_response "$(do_put "/api/v1/categories/bukan-uuid" '{"name":"Test"}' "$ADMIN_TOKEN")"
+parse_response "$(do_put "/api/v1/categories/not-a-uuid" '{"name":"Test"}' "$ADMIN_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Update category invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
@@ -437,9 +475,9 @@ parse_response "$(do_put "/api/v1/categories/00000000-0000-0000-0000-00000000000
   '{"name":"Test"}' "$ADMIN_TOKEN")"
 assert "Update category not found → 404" "404" "$RESP_CODE"
 
-# Update category oleh seller → 403 (middleware role check)
+# Update category by seller → 403 (middleware role check)
 parse_response "$(do_put "/api/v1/categories/$CAT_ID" '{"name":"Hack"}' "$SELLER_TOKEN")"
-assert "Update category oleh seller → 403" "403" "$RESP_CODE"
+assert "Update category by seller → 403" "403" "$RESP_CODE"
 
 parse_response "$(do_put "/api/v1/categories/$CAT_ID" \
   "{\"name\":\"QA Cat Upd $TIMESTAMP\"}" "$ADMIN_TOKEN")"
@@ -464,27 +502,27 @@ section "4. PRODUCT"
 assert "Create product (seller) → OK" "true" \
   "$([ -n "$PROD_ID" ] && echo true || echo false)"
 
-# Create product tanpa name → 400
+# Create product without name → 400
 parse_response "$(do_post "/api/v1/products" \
   "{\"price\":\"100.00\",\"stock\":1,\"category_id\":\"$CAT_ID\"}" "$SELLER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Create product tanpa name → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
+assert "Create product without name → 400" "400" "$RESP_CODE" "field" "name" "$FIELD"
 
-# Create product tanpa price → 400
+# Create product without price → 400
 parse_response "$(do_post "/api/v1/products" \
   "{\"name\":\"Test\",\"stock\":1,\"category_id\":\"$CAT_ID\"}" "$SELLER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Create product tanpa price → 400" "400" "$RESP_CODE" "field" "price" "$FIELD"
+assert "Create product without price → 400" "400" "$RESP_CODE" "field" "price" "$FIELD"
 
-# Create product tanpa category_id → 400
+# Create product without category_id → 400
 parse_response "$(do_post "/api/v1/products" \
   '{"name":"Test","price":"100.00","stock":1}' "$SELLER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Create product tanpa category_id → 400" "400" "$RESP_CODE" "field" "category_id" "$FIELD"
+assert "Create product without category_id → 400" "400" "$RESP_CODE" "field" "category_id" "$FIELD"
 
 parse_response "$(do_post "/api/v1/products" \
   "{\"name\":\"X\",\"price\":\"100.00\",\"stock\":1,\"category_id\":\"$CAT_ID\"}")"
-assert "Create product tanpa auth → 401" "401" "$RESP_CODE"
+assert "Create product without auth → 401" "401" "$RESP_CODE"
 
 parse_response "$(do_get "/api/v1/products?page=1&per_page=5")"
 CURR_PAGE=$(json_get "$RESP_BODY" "meta.pagination.current_page")
@@ -524,7 +562,7 @@ assert "Delete product (seller) → 200" "200" "$RESP_CODE" "message" "product d
 section "5. CART"
 
 parse_response "$(do_get "/api/v1/cart" "$SELLER_TOKEN")"
-assert "Seller akses cart → 403" "403" "$RESP_CODE"
+assert "Seller access cart → 403" "403" "$RESP_CODE"
 
 # Add item quantity 0 → 400
 parse_response "$(do_post "/api/v1/cart/items" \
@@ -532,11 +570,11 @@ parse_response "$(do_post "/api/v1/cart/items" \
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
 assert "Add cart item quantity 0 → 400" "400" "$RESP_CODE" "field" "quantity" "$FIELD"
 
-# Add item quantity negatif → 400
+# Add item negative quantity → 400
 parse_response "$(do_post "/api/v1/cart/items" \
   "{\"product_id\":\"$PROD_ID\",\"quantity\":-1}" "$BUYER2_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Add cart item quantity negatif → 400" "400" "$RESP_CODE" "field" "quantity" "$FIELD"
+assert "Add cart item negative quantity → 400" "400" "$RESP_CODE" "field" "quantity" "$FIELD"
 
 parse_response "$(do_post "/api/v1/cart/items" \
   "{\"product_id\":\"$PROD_ID\",\"quantity\":2}" "$BUYER2_TOKEN")"
@@ -558,13 +596,13 @@ assert "Update cart item quantity 0 → 400" "400" "$RESP_CODE" "field" "quantit
 
 parse_response "$(do_delete "/api/v1/cart/items/$PROD_ID" "$BUYER2_TOKEN")"
 AFTER_COUNT=$(json_len "$RESP_BODY" "data.items")
-assert "Remove cart item → 200 (cart kosong)" "200" "$RESP_CODE" "items empty" "0" "$AFTER_COUNT"
+assert "Remove cart item → 200 (empty cart)" "200" "$RESP_CODE" "items empty" "0" "$AFTER_COUNT"
 
 parse_response "$(do_get "/api/v1/cart" "$BUYER2_TOKEN")"
 UPDATED_AT=$(json_get "$RESP_BODY" "data.updated_at")
 IS_ZERO="false"
 echo "$UPDATED_AT" | grep -q "0001-01-01" && IS_ZERO="true"
-assert "Empty cart updated_at bukan zero value" "200" "$RESP_CODE" "is zero" "false" "$IS_ZERO"
+assert "Empty cart updated_at is not zero value" "200" "$RESP_CODE" "is zero" "false" "$IS_ZERO"
 
 # =============================================================================
 # 6. ORDER
@@ -576,18 +614,29 @@ do_post "/api/v1/cart/items" \
 
 parse_response "$(do_post "/api/v1/orders" '{}' "$BUYER2_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Checkout tanpa shipping_address → 400" "400" "$RESP_CODE" "field" "shipping_address" "$FIELD"
+assert "Checkout without shipping_address → 400" "400" "$RESP_CODE" "field" "shipping_address" "$FIELD"
 
 parse_response "$(do_post "/api/v1/orders" \
-  '{"shipping_address":"Jl. QA Test No.1 Jakarta"}' "$BUYER2_TOKEN")"
-ORDER_ID=$(json_get "$RESP_BODY" "data.id")
-ORDER_ADDR=$(json_get "$RESP_BODY" "data.shipping_address")
+  '{"shipping_address":"123 QA Test St, Jakarta"}' "$BUYER2_TOKEN")"
+ORDER_ID=$(json_get "$RESP_BODY" "data.0.id")
+ORDER_ADDR=$(json_get "$RESP_BODY" "data.0.shipping_address")
 assert "Checkout valid → 201 + shipping_address" "201" "$RESP_CODE" \
-  "shipping_address" "Jl. QA Test No.1 Jakarta" "$ORDER_ADDR"
+  "shipping_address" "123 QA Test St, Jakarta" "$ORDER_ADDR"
 
-echo -e "  ${YELLOW}Menunggu NSQ payment pipeline (3s)...${RESET}"
-sleep 3
-
+# Wait for the NSQ pipeline. Mock payment succeeds 90% of the time; if this order
+# happens to fail (becomes 'cancelled'), create a new order and retry until 'paid'
+# so the status-flow tests below are deterministic.
+echo -e "  ${YELLOW}Waiting for the NSQ payment pipeline...${RESET}"
+STATUS=$(wait_order_terminal "$ORDER_ID" "$BUYER2_TOKEN")
+RETRY=0
+while [ "$STATUS" = "cancelled" ] && [ "$RETRY" -lt 4 ]; do
+  RETRY=$((RETRY + 1))
+  do_post "/api/v1/cart/items" "{\"product_id\":\"$PROD_ID\",\"quantity\":1}" "$BUYER2_TOKEN" > /dev/null
+  parse_response "$(do_post "/api/v1/orders" '{"shipping_address":"123 QA Test St, Jakarta"}' "$BUYER2_TOKEN")"
+  ORDER_ID=$(json_get "$RESP_BODY" "data.0.id")
+  STATUS=$(wait_order_terminal "$ORDER_ID" "$BUYER2_TOKEN")
+done
+# Final GET in the parent shell so RESP_CODE/RESP_BODY are correct for the assert
 parse_response "$(do_get "/api/v1/orders/$ORDER_ID" "$BUYER2_TOKEN")"
 STATUS=$(json_get "$RESP_BODY" "data.status")
 assert "Order auto-paid via NSQ" "200" "$RESP_CODE" "status" "paid" "$STATUS"
@@ -595,7 +644,7 @@ assert "Order auto-paid via NSQ" "200" "$RESP_CODE" "status" "paid" "$STATUS"
 parse_response "$(do_get "/api/v1/orders" "$BUYER2_TOKEN")"
 ORDER_COUNT=$(json_len "$RESP_BODY" "data")
 assert "List orders (buyer) → 200" "200" "$RESP_CODE" \
-  "ada order" "true" "$([ "${ORDER_COUNT:-0}" -gt 0 ] && echo true || echo false)"
+  "has order" "true" "$([ "${ORDER_COUNT:-0}" -gt 0 ] && echo true || echo false)"
 
 parse_response "$(do_get "/api/v1/seller/orders" "$SELLER_TOKEN")"
 assert "List seller orders → 200" "200" "$RESP_CODE"
@@ -606,10 +655,10 @@ assert "Update order status → processing" "200" "$RESP_CODE"
 parse_response "$(do_put "/api/v1/orders/$ORDER_ID/status" '{"status":"shipping"}' "$SELLER_TOKEN")"
 assert "Update order status → shipping" "200" "$RESP_CODE"
 
-# Update status tanpa field status → 400
+# Update status without status field → 400
 parse_response "$(do_put "/api/v1/orders/$ORDER_ID/status" '{}' "$SELLER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
-assert "Update order status field kosong → 400" "400" "$RESP_CODE" "field" "status" "$FIELD"
+assert "Update order status empty field → 400" "400" "$RESP_CODE" "field" "status" "$FIELD"
 
 parse_response "$(do_put "/api/v1/orders/$ORDER_ID/cancel" '' "$BUYER2_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
@@ -618,19 +667,19 @@ assert "Cancel order (shipping) → 400 INVALID_STATUS" "400" "$RESP_CODE" \
 
 do_post "/api/v1/cart/items" \
   "{\"product_id\":\"$PROD_ID\",\"quantity\":1}" "$BUYER2_TOKEN" > /dev/null
-parse_response "$(do_post "/api/v1/orders" '{"shipping_address":"Jl. Cancel Test"}' "$BUYER2_TOKEN")"
-ORDER2_ID=$(json_get "$RESP_BODY" "data.id")
+parse_response "$(do_post "/api/v1/orders" '{"shipping_address":"1 Cancel Test St"}' "$BUYER2_TOKEN")"
+ORDER2_ID=$(json_get "$RESP_BODY" "data.0.id")
 parse_response "$(do_put "/api/v1/orders/$ORDER2_ID/cancel" '' "$BUYER2_TOKEN")"
 MSG=$(json_get "$RESP_BODY" "data.message")
 assert "Cancel order (pending) → 200" "200" "$RESP_CODE" "message" "order cancelled" "$MSG"
 
-# Checkout cart kosong (cart BUYER2 sudah kosong setelah checkout ORDER2) → 400
+# Checkout empty cart (BUYER2 cart already empty after ORDER2 checkout) → 400
 parse_response "$(do_post "/api/v1/orders" \
-  '{"shipping_address":"Jl. Empty Cart Test"}' "$BUYER2_TOKEN")"
-assert "Checkout cart kosong → 400" "400" "$RESP_CODE"
+  '{"shipping_address":"1 Empty Cart St"}' "$BUYER2_TOKEN")"
+assert "Checkout empty cart → 400" "400" "$RESP_CODE"
 
 # Get order invalid UUID → 400
-parse_response "$(do_get "/api/v1/orders/bukan-uuid" "$BUYER2_TOKEN")"
+parse_response "$(do_get "/api/v1/orders/not-a-uuid" "$BUYER2_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Get order invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
@@ -639,9 +688,33 @@ parse_response "$(do_put "/api/v1/orders/$ORDER2_ID/status" '{"status":"processi
 assert "Update order status invalid transition → 400" "400" "$RESP_CODE"
 
 # Cancel order invalid UUID → 400
-parse_response "$(do_put "/api/v1/orders/bukan-uuid/cancel" '' "$BUYER2_TOKEN")"
+parse_response "$(do_put "/api/v1/orders/not-a-uuid/cancel" '' "$BUYER2_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Cancel order invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
+
+do_post "/api/v1/cart/items" "{\"product_id\":\"$PROD_ID\",\"quantity\":1}" "$BUYER2_TOKEN" > /dev/null
+do_post "/api/v1/cart/items" "{\"product_id\":\"$PROD2_ID\",\"quantity\":1}" "$BUYER2_TOKEN" > /dev/null
+parse_response "$(do_post "/api/v1/orders" '{"shipping_address":"1 Multi Store St"}' "$BUYER2_TOKEN")"
+MULTI_OK=$(python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data')
+ok = (isinstance(d, list) and len(d) == 2
+      and all(len(o.get('items', [])) == 1 for o in d)
+      and {o['store_id'] for o in d} == {'$STORE_ID', '$STORE2_ID'})
+print('true' if ok else 'false')
+" 2>/dev/null <<< "$RESP_BODY")
+assert "Checkout multi-store → 201 + 2 orders (1 per store)" "201" "$RESP_CODE" "split correct" "true" "$MULTI_OK"
+
+parse_response "$(do_get "/api/v1/seller/orders" "$SELLER2_TOKEN")"
+SELLER2_ISO=$(python3 -c "
+import json, sys
+d = json.load(sys.stdin).get('data', [])
+prods = [i['product_id'] for o in d for i in o.get('items', [])]
+ok = (all(o['store_id'] == '$STORE2_ID' for o in d)
+      and '$PROD2_ID' in prods and '$PROD_ID' not in prods)
+print('true' if ok else 'false')
+" 2>/dev/null <<< "$RESP_BODY")
+assert "Seller2 /seller/orders → only its own store items" "200" "$RESP_CODE" "isolation" "true" "$SELLER2_ISO"
 
 # =============================================================================
 # 7. REVIEW
@@ -650,23 +723,23 @@ section "7. REVIEW"
 
 do_put "/api/v1/orders/$ORDER_ID/status" '{"status":"shipped"}' "$SELLER_TOKEN" > /dev/null
 
-# Review rating 0 → 400 (validasi handler: rating < 1)
+# Review rating 0 → 400 (handler validation: rating < 1)
 parse_response "$(do_post "/api/v1/products/$PROD_ID/reviews" '{"rating":0}' "$BUYER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
 assert "Review rating 0 → 400" "400" "$RESP_CODE" "field" "rating" "$FIELD"
 
 parse_response "$(do_post "/api/v1/products/$PROD_ID/reviews" '{"rating":5}' "$BUYER_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
-assert "Review tanpa pembelian → 403" "403" "$RESP_CODE" "error code" "FORBIDDEN" "$CODE"
+assert "Review without purchase → 403" "403" "$RESP_CODE" "error code" "FORBIDDEN" "$CODE"
 
 parse_response "$(do_post "/api/v1/products/$PROD_ID/reviews" \
-  '{"rating":4,"comment":"Produk bagus"}' "$BUYER2_TOKEN")"
+  '{"rating":4,"comment":"Good product"}' "$BUYER2_TOKEN")"
 RATING=$(json_get "$RESP_BODY" "data.rating")
-assert "Review valid (setelah shipped) → 201" "201" "$RESP_CODE" "rating" "4" "$RATING"
+assert "Review valid (after shipped) → 201" "201" "$RESP_CODE" "rating" "4" "$RATING"
 
 parse_response "$(do_post "/api/v1/products/$PROD_ID/reviews" '{"rating":3}' "$BUYER2_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
-assert "Review duplikat → 409 CONFLICT" "409" "$RESP_CODE" "error code" "CONFLICT" "$CODE"
+assert "Review duplicate → 409 CONFLICT" "409" "$RESP_CODE" "error code" "CONFLICT" "$CODE"
 
 parse_response "$(do_post "/api/v1/products/$PROD_ID/reviews" '{"rating":6}' "$BUYER_TOKEN")"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
@@ -682,11 +755,11 @@ assert "List reviews → 200 + pagination" "200" "$RESP_CODE" \
 # =============================================================================
 section "8. ERROR CASES"
 
-parse_response "$(do_get "/api/v1/endpoint-tidak-ada")"
+parse_response "$(do_get "/api/v1/endpoint-does-not-exist")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "404 unknown endpoint → JSON NOT_FOUND" "404" "$RESP_CODE" "error code" "NOT_FOUND" "$CODE"
 
-parse_response "$(do_get "/api/v1/products/bukan-uuid")"
+parse_response "$(do_get "/api/v1/products/not-a-uuid")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
 assert "Invalid UUID path param (product) → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
@@ -702,15 +775,15 @@ assert "Bad Authorization format → 401" "401" "$RESP_CODE"
 
 parse_response "$(do_get "/api/v1/cart" "$SELLER_TOKEN")"
 CODE=$(json_get "$RESP_BODY" "errors.0.code")
-assert "Seller akses buyer endpoint → 403" "403" "$RESP_CODE" "error code" "FORBIDDEN" "$CODE"
+assert "Seller access buyer endpoint → 403" "403" "$RESP_CODE" "error code" "FORBIDDEN" "$CODE"
 
-# Body bukan JSON — kirim ke /auth/login (pakai do_auth_post agar rate limit aware)
-do_auth_post "/api/v1/auth/login" 'bukan json' > "$RESP_FILE" 2>/dev/null
+# Body not JSON — send to /auth/login (use do_auth_post to stay rate-limit aware)
+do_auth_post "/api/v1/auth/login" 'not json' > "$RESP_FILE" 2>/dev/null
 parse_response "$(cat "$RESP_FILE")"
-assert "Body bukan JSON → 400" "400" "$RESP_CODE"
+assert "Body not JSON → 400" "400" "$RESP_CODE"
 
-# Rate limit test — pastikan sudah dalam window yang cukup
-echo -e "  ${YELLOW}Rate limit test (11 req ke /login)...${RESET}"
+# Rate limit test — ensure we are within a sufficient window
+echo -e "  ${YELLOW}Rate limit test (11 requests to /login)...${RESET}"
 LAST_CODE=""
 for i in $(seq 1 11); do
   LAST_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/api/v1/auth/login" \
@@ -718,7 +791,7 @@ for i in $(seq 1 11); do
   printf "."
 done
 echo ""
-assert "Rate limit login (ke-11) → 429" "429" "$LAST_CODE"
+assert "Rate limit login (11th) → 429" "429" "$LAST_CODE"
 
 # =============================================================================
 # SUMMARY
@@ -726,7 +799,7 @@ assert "Rate limit login (ke-11) → 429" "429" "$LAST_CODE"
 TOTAL=$((PASS + FAIL))
 echo ""
 echo -e "${BOLD}============================================${RESET}"
-echo -e "${BOLD}HASIL QA TESTING${RESET}"
+echo -e "${BOLD}QA TESTING RESULTS${RESET}"
 echo -e "--------------------------------------------"
 printf "  Total   : %d\n" "$TOTAL"
 echo -e "  ${GREEN}Pass    : $PASS${RESET}"
@@ -740,9 +813,9 @@ if [ $FAIL -gt 0 ]; then
 else
   echo -e "  ${GREEN}Fail    : 0${RESET}"
   echo ""
-  echo -e "  ${GREEN}${BOLD}Semua test case PASS.${RESET}"
+  echo -e "  ${GREEN}${BOLD}All test cases PASS.${RESET}"
 fi
-echo "  Selesai : $(date '+%H:%M:%S')"
+echo "  Finished : $(date '+%H:%M:%S')"
 echo -e "${BOLD}============================================${RESET}"
 
 [ $FAIL -eq 0 ] && exit 0 || exit 1
