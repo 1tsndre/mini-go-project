@@ -1,0 +1,210 @@
+================================================================================
+QA TEST CASES - mini-go-project
+E-Commerce REST API
+Total: 92 test case
+================================================================================
+
+Description:
+  Automated script: bash qa_test.sh
+  Login rate limit is handled automatically (auto-wait 65s when near the limit).
+  Setup creates fresh fixtures each run (timestamp-based) to avoid conflicts.
+
+Roles:
+  ADMIN   - admin@example.com (seeded in DB)
+  BUYER   - qa_buyer_<ts>@test.com (registered during setup)
+  SELLER  - same user as BUYER after creating a store (re-login)
+  BUYER2  - qa_buyer2_<ts>@test.com (registered during setup, for order/review)
+
+--------------------------------------------------------------------------------
+0. HEALTH (1 test)
+--------------------------------------------------------------------------------
+
+TC-001  GET /health → 200 (status: ok)                       GET /health                                                     HTTP 200; data.status = "ok"
+
+--------------------------------------------------------------------------------
+1. AUTH (17 test)
+--------------------------------------------------------------------------------
+
+TC-002  Register valid → 201                                 POST /api/v1/auth/register                                      HTTP 201
+TC-003  Register invalid email → 400                         POST /api/v1/auth/register                                      HTTP 400; errors[0].field = "email"
+TC-004  Register short password → 400                        POST /api/v1/auth/register                                      HTTP 400; errors[0].field = "password"
+TC-005  Register empty → 400 (3 field errors)                POST /api/v1/auth/register                                      HTTP 400; len(errors) = 3  (email, password, name)
+TC-006  Register empty name → 400                            POST /api/v1/auth/register                                      HTTP 400; errors[0].field = "name"
+TC-007  Register duplicate → 409 CONFLICT                    POST /api/v1/auth/register                                      HTTP 409; errors[0].code = "CONFLICT"
+TC-008  Login unregistered email → 401                       POST /api/v1/auth/login                                         HTTP 401; errors[0].code = "UNAUTHORIZED"
+TC-009  Login empty → 400 (2 field errors)                   POST /api/v1/auth/login                                         HTTP 400; len(errors) = 2  (email, password)
+TC-010  Login valid → 200 + access_token                     POST /api/v1/auth/login                                         HTTP 200; data.access_token != ""
+TC-011  Login wrong password → 401                           POST /api/v1/auth/login                                         HTTP 401; errors[0].code = "UNAUTHORIZED"
+TC-012  Refresh token → 200 + new token                      POST /api/v1/auth/refresh                                       HTTP 200; data.access_token != ""
+TC-013  Refresh without token → 400                          POST /api/v1/auth/refresh                                       HTTP 400; errors[0].field = "refresh_token"
+TC-014  Refresh with a used token → 401                      POST /api/v1/auth/refresh                                       HTTP 401; errors[0].code = "UNAUTHORIZED"
+TC-015  Logout → 200                                         POST /api/v1/auth/logout                                        HTTP 200; data.message = "logged out"
+TC-016  Refresh after logout → 401                           POST /api/v1/auth/refresh                                       HTTP 401; errors[0].code = "UNAUTHORIZED"
+TC-017  Logout without token → 400                           POST /api/v1/auth/logout                                        HTTP 400; errors[0].field = "refresh_token"
+TC-018  Logout with an access token → 401                    POST /api/v1/auth/logout                                        HTTP 401; errors[0].code = "UNAUTHORIZED"
+
+--------------------------------------------------------------------------------
+2. STORE (10 test)
+--------------------------------------------------------------------------------
+
+TC-019  Create store (buyer → seller) → OK                   POST /api/v1/stores                                             STORE_ID != ""  (setup fixture check)
+TC-020  Create store empty name → 400                        POST /api/v1/stores                                             HTTP 400; errors[0].field = "name"
+TC-021  Get store → 200                                      GET /api/v1/stores/<STORE_ID>                                   HTTP 200; data.id = STORE_ID
+TC-022  Get store invalid UUID → 400                         GET /api/v1/stores/not-a-uuid                                   HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-023  Get store not found → 404                            GET /api/v1/stores/00000000-0000-0000-0000-000000000000         HTTP 404
+TC-024  Get my store (seller) → 200                          GET /api/v1/stores/me                                           HTTP 200; data.id = STORE_ID
+TC-025  Get my store without a store → 404                   GET /api/v1/stores/me                                           HTTP 404; errors[0].code = "NOT_FOUND"
+TC-026  Get my store without auth → 401                      GET /api/v1/stores/me                                           HTTP 401
+TC-027  Update store (seller) → 200                          PUT /api/v1/stores/<STORE_ID>                                   HTTP 200; data.name = "QA Store Updated"
+TC-028  Update store without auth → 401                      PUT /api/v1/stores/<STORE_ID>                                   HTTP 401
+
+--------------------------------------------------------------------------------
+3. CATEGORY (12 test)
+--------------------------------------------------------------------------------
+
+TC-029  Create category (admin) → OK                         POST /api/v1/categories                                         CAT_ID != ""  (setup fixture check)
+TC-030  Create category empty name → 400                     POST /api/v1/categories                                         HTTP 400; errors[0].field = "name"
+TC-031  Create category duplicate → 409                      POST /api/v1/categories                                         HTTP 409; errors[0].code = "CONFLICT"
+TC-032  Create category without auth → 401                   POST /api/v1/categories                                         HTTP 401
+TC-033  Create category (buyer token) → 403                  POST /api/v1/categories                                         HTTP 403
+TC-034  Get categories → 200 (array, no raw DB error)        GET /api/v1/categories                                          HTTP 200; type(data) = list
+TC-035  Update category invalid UUID → 400                   PUT /api/v1/categories/not-a-uuid                               HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-036  Update category not found → 404                      PUT /api/v1/categories/00000000-0000-0000-0000-000000000000     HTTP 404
+TC-037  Update category by seller → 403                      PUT /api/v1/categories/<CAT_ID>                                 HTTP 403
+TC-038  Update category (admin) → 200                        PUT /api/v1/categories/<CAT_ID>                                 HTTP 200
+TC-039  Delete category not found → 404                      DELETE /api/v1/categories/00000000-0000-0000-0000-000000000000  HTTP 404; errors[0].code = "NOT_FOUND"
+TC-040  Delete category (admin) → 200                        DELETE /api/v1/categories/<DEL_CAT_ID>                          HTTP 200; data.message = "category deleted"
+
+--------------------------------------------------------------------------------
+4. PRODUCT (12 test)
+--------------------------------------------------------------------------------
+
+TC-041  Create product (seller) → OK                         POST /api/v1/products                                           PROD_ID != ""  (setup fixture check)
+TC-042  Create product without name → 400                    POST /api/v1/products                                           HTTP 400; errors[0].field = "name"
+TC-043  Create product without price → 400                   POST /api/v1/products                                           HTTP 400; errors[0].field = "price"
+TC-044  Create product without category_id → 400             POST /api/v1/products                                           HTTP 400; errors[0].field = "category_id"
+TC-045  Create product without auth → 401                    POST /api/v1/products                                           HTTP 401
+TC-046  Get products list → 200 + pagination                 GET /api/v1/products?page=1&per_page=5                          HTTP 200; meta.pagination.current_page = 1
+TC-047  Get product detail → 200                             GET /api/v1/products/<PROD_ID>                                  HTTP 200; data.id = PROD_ID
+TC-048  Get product not found → 404                          GET /api/v1/products/00000000-0000-0000-0000-000000000000       HTTP 404
+TC-049  Search product → 200                                 GET /api/v1/products?search=QA%20Product                        HTTP 200
+TC-050  Filter product by category_id → 200                  GET /api/v1/products?category_id=<CAT_ID>                       HTTP 200
+TC-051  Update product (seller) → 200                        PUT /api/v1/products/<PROD_ID>                                  HTTP 200; data.price = 450000
+TC-052  Delete product (seller) → 200                        DELETE /api/v1/products/<DEL_PROD_ID>                           HTTP 200; data.message = "product deleted"
+
+--------------------------------------------------------------------------------
+5. CART (9 test)
+--------------------------------------------------------------------------------
+
+TC-053  Seller access cart → 403                             GET /api/v1/cart                                                HTTP 403
+TC-054  Add cart item quantity 0 → 400                       POST /api/v1/cart/items                                         HTTP 400; errors[0].field = "quantity"
+TC-055  Add cart item negative quantity → 400                POST /api/v1/cart/items                                         HTTP 400; errors[0].field = "quantity"
+TC-056  Add item to cart → 200                               POST /api/v1/cart/items                                         HTTP 200; data.items[0].quantity = 2
+TC-057  Get cart → 200 (1 item)                              GET /api/v1/cart                                                HTTP 200; len(data.items) = 1
+TC-058  Update cart quantity → 200                           PUT /api/v1/cart/items/<PROD_ID>                                HTTP 200; data.items[0].quantity = 3
+TC-059  Update cart item quantity 0 → 400                    PUT /api/v1/cart/items/<PROD_ID>                                HTTP 400; errors[0].field = "quantity"
+TC-060  Remove cart item → 200 (empty cart)                  DELETE /api/v1/cart/items/<PROD_ID>                             HTTP 200; len(data.items) = 0
+TC-061  Empty cart updated_at is not zero value              GET /api/v1/cart                                                HTTP 200; data.updated_at does not contain "0001-01-01"
+
+--------------------------------------------------------------------------------
+6. ORDER (18 test)
+--------------------------------------------------------------------------------
+
+TC-062  Checkout without shipping_address → 400              POST /api/v1/orders                                             HTTP 400; errors[0].field = "shipping_address"
+TC-063  Checkout valid → 201 + shipping_address              POST /api/v1/orders                                             HTTP 201; data[0].shipping_address = "123 QA Test St, Jakarta"
+TC-064  Order auto-paid via NSQ                              GET /api/v1/orders/<ORDER_ID>                                   HTTP 200; data.status = "paid"
+TC-065  Get order payment status (gRPC) → 200 success        GET /api/v1/orders/<ORDER_ID>/payment                           HTTP 200; data.status = "success"
+TC-066  Get payment status invalid UUID → 400                GET /api/v1/orders/not-a-uuid/payment                           HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-067  List orders (buyer) → 200                            GET /api/v1/orders                                              HTTP 200; len(data) >= 1
+TC-068  List seller orders → 200                             GET /api/v1/seller/orders                                       HTTP 200
+TC-069  Update order status → processing                     PUT /api/v1/orders/<ORDER_ID>/status                            HTTP 200
+TC-070  Update order status → shipping                       PUT /api/v1/orders/<ORDER_ID>/status                            HTTP 200
+TC-071  Update order status empty field → 400                PUT /api/v1/orders/<ORDER_ID>/status                            HTTP 400; errors[0].field = "status"
+TC-072  Cancel order (shipping) → 400 INVALID_STATUS         PUT /api/v1/orders/<ORDER_ID>/cancel                            HTTP 400; errors[0].code = "INVALID_STATUS"
+TC-073  Cancel order (pending) → 200                         PUT /api/v1/orders/<ORDER2_ID>/cancel                           HTTP 200; data.message = "order cancelled"
+TC-074  Checkout empty cart → 400                            POST /api/v1/orders                                             HTTP 400
+TC-075  Get order invalid UUID → 400                         GET /api/v1/orders/not-a-uuid                                   HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-076  Update order status invalid transition → 400         PUT /api/v1/orders/<ORDER2_ID>/status                           HTTP 400
+TC-077  Cancel order invalid UUID → 400                      PUT /api/v1/orders/not-a-uuid/cancel                            HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-078  Checkout multi-store → 201 + 2 orders (1 per store)  POST /api/v1/orders                                             HTTP 201; len(data) = 2; each order has exactly 1 item; { data[0].store_id, data[1].store_id } = { STORE_ID, STORE2_ID }
+TC-079  Seller2 /seller/orders → only its own store items    GET /api/v1/seller/orders                                       HTTP 200; all data[].store_id = STORE2_ID; items contain PROD2_ID and do NOT contain PROD_ID (other store)
+
+--------------------------------------------------------------------------------
+7. REVIEW (6 test)
+--------------------------------------------------------------------------------
+
+TC-080  Review rating 0 → 400                                POST /api/v1/products/<PROD_ID>/reviews                         HTTP 400; errors[0].field = "rating"
+TC-081  Review without purchase → 403                        POST /api/v1/products/<PROD_ID>/reviews                         HTTP 403; errors[0].code = "FORBIDDEN"
+TC-082  Review valid (after shipped) → 201                   POST /api/v1/products/<PROD_ID>/reviews                         HTTP 201; data.rating = 4
+TC-083  Review duplicate → 409 CONFLICT                      POST /api/v1/products/<PROD_ID>/reviews                         HTTP 409; errors[0].code = "CONFLICT"
+TC-084  Review rating > 5 → 400                              POST /api/v1/products/<PROD_ID>/reviews                         HTTP 400; errors[0].field = "rating"
+TC-085  List reviews → 200 + pagination                      GET /api/v1/products/<PROD_ID>/reviews                          HTTP 200; meta.pagination.total_items >= 1
+
+--------------------------------------------------------------------------------
+8. ERROR CASES (7 test)
+--------------------------------------------------------------------------------
+
+TC-086  404 unknown endpoint → JSON NOT_FOUND                GET /api/v1/endpoint-does-not-exist                             HTTP 404; errors[0].code = "NOT_FOUND"
+TC-087  Invalid UUID path param (product) → 400              GET /api/v1/products/not-a-uuid                                 HTTP 400; errors[0].code = "VALIDATION_ERROR"
+TC-088  Token invalid → 401 UNAUTHORIZED                     GET /api/v1/cart                                                HTTP 401; errors[0].code = "UNAUTHORIZED"
+TC-089  Bad Authorization format → 401                       GET /api/v1/cart                                                HTTP 401
+TC-090  Seller access buyer endpoint → 403                   GET /api/v1/cart                                                HTTP 403; errors[0].code = "FORBIDDEN"
+TC-091  Body not JSON → 400                                  POST /api/v1/auth/login                                         HTTP 400
+TC-092  Rate limit login (11th) → 429                        POST (11x) /api/v1/auth/login                                   HTTP 429 on the 11th request
+
+================================================================================
+ORDER FLOW UNDER TEST
+================================================================================
+
+  pending
+    │ checkout valid (TC-063)
+    ▼
+  paid  ◄── NSQ payment pipeline (TC-064)
+    │ update status → processing (TC-069)
+    ▼
+  processing
+    │ update status → shipping (TC-070)
+    ▼
+  shipping
+    │ update status → shipped (done in TC-082 setup)
+    ▼
+  shipped
+    │ review can be created (TC-082)
+    ▼
+  (completed — not tested, requires buyer confirmation)
+
+  Cancel flow:
+    pending → cancel OK (TC-073)
+    shipping → cancel REJECTED (TC-072)
+    cancelled → update status REJECTED (TC-076)
+
+================================================================================
+RATE LIMIT VALIDATION
+================================================================================
+
+  Endpoint             Rate Limit    Type
+  ------------------   ----------    -------
+  POST /auth/login     10 req/min    loginRate  (sliding window Redis)
+  POST /auth/register  10 req/min    loginRate  (same bucket as login)
+  POST /auth/refresh   120 req/min   authRate
+  Public endpoint      60 req/min    publicRate
+  Auth'd endpoint      120 req/min   authRate
+
+  The script counts loginRate calls via a file counter (RATE_FILE).
+  Auto-waits 65 seconds when the counter approaches 9 (margin of 1 from the limit of 10).
+
+================================================================================
+ENVIRONMENT
+================================================================================
+
+  Service     : go run store-service/cmd/main.go
+  Base URL    : http://localhost:8080  (default, can be overridden via arg)
+  Database    : PostgreSQL (must be running before the service starts)
+  Cache       : Redis (must be running)
+  Messaging   : NSQ nsqd (must be running for TC-064)
+  Payment Svc : go run payment-service/cmd/main.go (must be running for TC-064)
+
+  Run: bash qa_test.sh
+  Or : bash qa_test.sh http://localhost:9090  (custom base URL)
+
+================================================================================
