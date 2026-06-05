@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # QA Test Script - mini-go-project
-# 82 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split), Review, Error
+# 84 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
 # Usage: ./qa_test.sh [BASE_URL]
 #
 # Login rate limit (10/min) is handled automatically via a file counter.
@@ -640,6 +640,14 @@ done
 parse_response "$(do_get "/api/v1/orders/$ORDER_ID" "$BUYER2_TOKEN")"
 STATUS=$(json_get "$RESP_BODY" "data.status")
 assert "Order auto-paid via NSQ" "200" "$RESP_CODE" "status" "paid" "$STATUS"
+
+parse_response "$(do_get "/api/v1/orders/$ORDER_ID/payment" "$BUYER2_TOKEN")"
+PAY_STATUS=$(json_get "$RESP_BODY" "data.status")
+assert "Get order payment status (gRPC) → 200 success" "200" "$RESP_CODE" "status" "success" "$PAY_STATUS"
+
+parse_response "$(do_get "/api/v1/orders/not-a-uuid/payment" "$BUYER2_TOKEN")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Get payment status invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
 parse_response "$(do_get "/api/v1/orders" "$BUYER2_TOKEN")"
 ORDER_COUNT=$(json_len "$RESP_BODY" "data")

@@ -10,7 +10,7 @@ An E-Commerce REST API built with Go, following Clean Architecture principles. F
 | **PostgreSQL** | Primary data store |
 | **Redis** | Cart storage, product caching, distributed locking, rate limiting |
 | **NSQ** | Asynchronous order-to-payment pipeline |
-| **gRPC** | Inter-service communication (payment processing) |
+| **gRPC** | Synchronous payment-status query (store-service → payment-service) |
 | **GORM** | ORM and database abstraction |
 | **JWT** | Authentication with access/refresh token pair |
 | **Viper** | Configuration management |
@@ -219,6 +219,7 @@ go run store-service/cmd/main.go
 | GET | `/api/v1/orders` | List buyer orders | Buyer |
 | GET | `/api/v1/orders/:id` | Get order detail | Buyer |
 | PUT | `/api/v1/orders/:id/cancel` | Cancel order | Buyer |
+| GET | `/api/v1/orders/:id/payment` | Get payment status (via gRPC to payment-service) | Buyer |
 | GET | `/api/v1/seller/orders` | List seller orders | Seller |
 | PUT | `/api/v1/orders/:id/status` | Update order status | Seller |
 
@@ -278,7 +279,8 @@ go run store-service/cmd/main.go
 | `RATE_LIMIT_LOGIN` | 10 | Req/min for login endpoint |
 | `UPLOAD_MAX_SIZE` | 5242880 | Max upload size (bytes) |
 | `UPLOAD_DIR` | ./uploads | Upload directory |
-| `PAYMENT_GRPC_PORT` | 50051 | Payment service gRPC port |
+| `PAYMENT_GRPC_PORT` | 50051 | Payment service gRPC port (payment-service server) |
+| `PAYMENT_GRPC_ADDR` | localhost:50051 | Payment service gRPC address (store-service client) |
 
 </details>
 

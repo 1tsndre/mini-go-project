@@ -1,7 +1,7 @@
 ================================================================================
 QA TEST CASES - mini-go-project
 E-Commerce REST API
-Total: 82 test case
+Total: 84 test case
 ================================================================================
 
 Description:
@@ -546,7 +546,7 @@ TC-053
             (0001-01-01T00:00:00Z) in the updated_at field.
 
 --------------------------------------------------------------------------------
-6. ORDER (16 test)
+6. ORDER (18 test)
 --------------------------------------------------------------------------------
 
 TC-054
@@ -584,6 +584,26 @@ TC-056
             payment succeeds 90% of the time; if this order happens to fail
             ('cancelled'), the script creates a new order and retries until 'paid'
             (max 4x) so the status-flow tests below are deterministic.
+
+TC-056a
+  Name    : Get order payment status (gRPC) → 200 success
+  Method  : GET
+  URL     : /api/v1/orders/<ORDER_ID>/payment
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 200
+            data.status = "success"
+  Purpose : store-service queries payment-service synchronously over gRPC for the
+            payment-processor record of an order (async write via NSQ, sync read
+            via gRPC). The order was paid, so the processor status is "success".
+
+TC-056b
+  Name    : Get payment status invalid UUID → 400
+  Method  : GET
+  URL     : /api/v1/orders/not-a-uuid/payment
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 400
+            errors[0].code = "VALIDATION_ERROR"
+  Purpose : An invalid UUID path param is rejected in the handler before the gRPC call.
 
 TC-057
   Name    : List orders (buyer) → 200

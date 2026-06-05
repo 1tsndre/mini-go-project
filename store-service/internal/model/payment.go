@@ -36,6 +36,14 @@ type PaymentResponse struct {
 	CreatedAt time.Time       `json:"created_at"`
 }
 
+type PaymentStatusResponse struct {
+	OrderID   string `json:"order_id"`
+	PaymentID string `json:"payment_id"`
+	Status    string `json:"status"`
+	Amount    string `json:"amount"`
+	Method    string `json:"method"`
+}
+
 func (p *Payment) ToResponse() PaymentResponse {
 	return PaymentResponse{
 		ID:        p.ID,
