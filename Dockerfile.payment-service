@@ -1,0 +1,34 @@
+# =========================
+# Stage 1: Build
+# =========================
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+RUN apk add --no-cache git ca-certificates
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -trimpath -ldflags="-s -w" -o /app/bin/payment-service ./payment-service/cmd
+
+# =========================
+# Stage 2: Runtime
+# =========================
+FROM alpine:3.20
+
+RUN apk add --no-cache ca-certificates tzdata && \
+    addgroup -S app && adduser -S app -G app
+
+WORKDIR /app
+
+COPY --from=builder /app/bin/payment-service ./payment-service
+
+USER app
+
+EXPOSE 50051
+
+ENTRYPOINT ["./payment-service"]
