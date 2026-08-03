@@ -1,0 +1,32 @@
+FROM golang:1.25-alpine AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+# Build for the image's platform (amd64 or arm64)
+ARG TARGETOS
+ARG TARGETARCH
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build -trimpath -ldflags="-s -w" -o /app/bin/store-service ./store-service/cmd
+
+FROM alpine:3.24
+
+RUN apk add --no-cache ca-certificates && \
+    addgroup -S app && adduser -S app -G app
+
+WORKDIR /app
+
+COPY --from=builder /app/bin/store-service ./store-service
+COPY --from=builder /app/docs ./docs
+
+RUN mkdir -p /app/uploads && chown -R app:app /app
+
+USER app
+
+EXPOSE 8080
+
+ENTRYPOINT ["./store-service"]
