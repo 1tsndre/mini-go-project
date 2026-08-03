@@ -108,6 +108,8 @@ mini-go-project/
 - NSQ
 - [golang-migrate](https://github.com/golang-migrate/migrate/tree/master/cmd/migrate)
 
+> Alternatively, skip all of the above and use [Docker](#run-with-docker) instead.
+
 ### Setup
 
 **1. Clone and configure**
@@ -153,6 +155,27 @@ API available at `http://localhost:8080`. OpenAPI spec at `http://localhost:8080
 ```bash
 go run payment-service/cmd/main.go
 go run store-service/cmd/main.go
+```
+
+### Run with Docker
+
+Spins up PostgreSQL, Redis, NSQ, and both services in one go — no need to install Go, PostgreSQL, Redis, NSQ, or `golang-migrate` locally.
+
+**Prerequisites:** Docker and Docker Compose.
+
+```bash
+git clone https://github.com/1tsndre/mini-go-project.git
+cd mini-go-project
+docker-compose up -d
+```
+
+This pulls the `store-service` and `payment-service` images from Docker Hub, runs database migrations automatically, then starts everything. API available at `http://localhost:8080`, NSQ admin at `http://localhost:4171`.
+
+To rebuild locally instead of pulling from Docker Hub, replace the `image:` field with a `build:` block in `docker-compose.yml` (see `Dockerfile.store-service` / `Dockerfile.payment-service`).
+
+```bash
+docker-compose logs -f store-service   # tail logs
+docker-compose down                    # stop everything
 ```
 
 ## API Endpoints
