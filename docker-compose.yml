@@ -1,0 +1,119 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-mini_go_ecommerce}
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: always
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  nsqd:
+    image: nsqio/nsq:v1.3.0
+    restart: always
+    # Keep queued messages on disk
+    command: /nsqd --broadcast-address=nsqd --data-path=/data --mem-queue-size=0
+    ports:
+      - "127.0.0.1:${NSQD_TCP_HOST_PORT:-4150}:4150"
+      - "127.0.0.1:${NSQD_HTTP_HOST_PORT:-4151}:4151"
+    volumes:
+      - nsq-data:/data
+
+  nsqadmin:
+    image: nsqio/nsq:v1.3.0
+    restart: always
+    command: /nsqadmin --nsqd-http-address=nsqd:4151
+    depends_on:
+      - nsqd
+    ports:
+      - "127.0.0.1:${NSQADMIN_HOST_PORT:-4171}:4171"
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.payment-service
+    restart: always
+    env_file:
+      - .env.example
+    environment:
+      NSQD_ADDR: nsqd:4150
+      PAYMENT_GRPC_PORT: 50051
+    depends_on:
+      - nsqd
+    ports:
+      - "127.0.0.1:${PAYMENT_GRPC_PORT:-50051}:50051"
+
+  migrate:
+    image: migrate/migrate:v4.19.1
+    restart: "no"
+    volumes:
+      - ./migrations:/migrations:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-mini_go_ecommerce}?sslmode=${DB_SSLMODE:-disable}"
+      - "up"
+
+  store-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.store-service
+    restart: always
+    env_file:
+      - .env.example
+    environment:
+      APP_PORT: 8080
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-mini_go_ecommerce}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      NSQD_ADDR: nsqd:4150
+      PAYMENT_GRPC_ADDR: payment-service:50051
+      JWT_SECRET: ${JWT_SECRET:-local-dev-only-jwt-secret-do-not-use-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      nsqd:
+        condition: service_started
+      payment-service:
+        condition: service_started
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - uploads-data:/app/uploads
+
+volumes:
+  postgres-data:
+  redis-data:
+  nsq-data:
+  uploads-data:
