@@ -107,7 +107,8 @@ func Load() (*Config, error) {
 	v.SetDefault("APP_PORT", "8080")
 	v.SetDefault("APP_ENV", pkgconstant.EnvDevelopment)
 	v.SetDefault("APP_READ_TIMEOUT", "15s")
-	v.SetDefault("APP_WRITE_TIMEOUT", "15s")
+	// Must exceed APP_REQUEST_TIMEOUT so a timed-out request can still be sent its 504.
+	v.SetDefault("APP_WRITE_TIMEOUT", "35s")
 	v.SetDefault("APP_IDLE_TIMEOUT", "60s")
 	v.SetDefault("APP_SHUTDOWN_TIMEOUT", "30s")
 	v.SetDefault("APP_REQUEST_TIMEOUT", "30s")
@@ -167,6 +168,12 @@ func Load() (*Config, error) {
 	requestTimeout, err := time.ParseDuration(v.GetString("APP_REQUEST_TIMEOUT"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid APP_REQUEST_TIMEOUT: %w", err)
+	}
+
+	// The server stops writing once WriteTimeout passes, so a request timeout at or
+	// beyond it means the client gets a dropped connection instead of the 504.
+	if writeTimeout <= requestTimeout {
+		return nil, fmt.Errorf("APP_WRITE_TIMEOUT (%s) must be greater than APP_REQUEST_TIMEOUT (%s)", writeTimeout, requestTimeout)
 	}
 
 	return &Config{
