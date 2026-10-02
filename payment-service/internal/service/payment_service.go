@@ -33,7 +33,15 @@ func NewPaymentService() *PaymentService {
 	return &PaymentService{records: make(map[string]*PaymentRecord)}
 }
 
+// ProcessPayment is idempotent per order: a redelivered or republished request
+// for an order that was already processed returns the recorded outcome instead
+// of charging again with a fresh random result.
 func (s *PaymentService) ProcessPayment(ctx context.Context, orderID, amount, method string) *PaymentResult {
+	if rec, ok := s.GetStatus(orderID); ok {
+		logger.Info(ctx, "payment already processed, returning recorded result", map[string]any{"order_id": orderID})
+		return rec.toResult()
+	}
+
 	time.Sleep(time.Duration(500+rand.Intn(1500)) * time.Millisecond)
 
 	success := rand.Float32() < 0.9
@@ -59,6 +67,11 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, orderID, amount, me
 	}
 
 	s.mu.Lock()
+	defer s.mu.Unlock()
+	// A concurrent duplicate may have finished first; keep whichever was recorded first.
+	if rec, ok := s.records[orderID]; ok {
+		return rec.toResult()
+	}
 	s.records[orderID] = &PaymentRecord{
 		OrderID:   orderID,
 		PaymentID: result.PaymentID,
@@ -66,8 +79,20 @@ func (s *PaymentService) ProcessPayment(ctx context.Context, orderID, amount, me
 		Amount:    amount,
 		Method:    method,
 	}
-	s.mu.Unlock()
 
+	return result
+}
+
+func (r *PaymentRecord) toResult() *PaymentResult {
+	result := &PaymentResult{
+		OrderID:   r.OrderID,
+		PaymentID: r.PaymentID,
+		Success:   r.Status == "success",
+		Message:   "payment declined",
+	}
+	if result.Success {
+		result.Message = "payment processed successfully"
+	}
 	return result
 }
 
