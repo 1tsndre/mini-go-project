@@ -74,7 +74,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db)
 	productRepo := repository.NewProductRepository(db, cache)
 	cartRepo := repository.NewCartRepository(db, cache)
-	orderRepo := repository.NewOrderRepository(db)
+	orderRepo := repository.NewOrderRepository(db, cache)
 	reviewRepo := repository.NewReviewRepository(db)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
@@ -84,7 +84,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)
 	cartService := service.NewCartService(cartRepo, productRepo, rs)
-	orderService := service.NewOrderService(orderRepo, cartRepo, productRepo, storeRepo, rs, nsqProducer)
+	orderService := service.NewOrderService(orderRepo, cartRepo, storeRepo, rs, nsqProducer)
 	reviewService := service.NewReviewService(reviewRepo)
 
 	uploader := upload.NewUploader(cfg.Upload.Dir, cfg.Upload.MaxSize)

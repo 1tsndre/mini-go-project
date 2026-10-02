@@ -14,6 +14,7 @@ import (
 	reflect "reflect"
 
 	model "github.com/1tsndre/mini-go-project/store-service/internal/model"
+	repository "github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -42,32 +43,34 @@ func (m *MockOrderRepository) EXPECT() *MockOrderRepositoryMockRecorder {
 	return m.recorder
 }
 
-// CreateOrders mocks base method.
-func (m *MockOrderRepository) CreateOrders(ctx context.Context, orders []*model.Order) error {
+// CancelAndRestock mocks base method.
+func (m *MockOrderRepository) CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateOrders", ctx, orders)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "CancelAndRestock", ctx, id, fromStatus)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// CreateOrders indicates an expected call of CreateOrders.
-func (mr *MockOrderRepositoryMockRecorder) CreateOrders(ctx, orders any) *gomock.Call {
+// CancelAndRestock indicates an expected call of CancelAndRestock.
+func (mr *MockOrderRepositoryMockRecorder) CancelAndRestock(ctx, id, fromStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrders", reflect.TypeOf((*MockOrderRepository)(nil).CreateOrders), ctx, orders)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelAndRestock", reflect.TypeOf((*MockOrderRepository)(nil).CancelAndRestock), ctx, id, fromStatus)
 }
 
-// CreatePayment mocks base method.
-func (m *MockOrderRepository) CreatePayment(ctx context.Context, payment *model.Payment) error {
+// CreateOrdersWithStock mocks base method.
+func (m *MockOrderRepository) CreateOrdersWithStock(ctx context.Context, reservations []repository.StockReservation, build func([]model.Product) ([]*model.Order, error)) ([]*model.Order, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreatePayment", ctx, payment)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "CreateOrdersWithStock", ctx, reservations, build)
+	ret0, _ := ret[0].([]*model.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// CreatePayment indicates an expected call of CreatePayment.
-func (mr *MockOrderRepositoryMockRecorder) CreatePayment(ctx, payment any) *gomock.Call {
+// CreateOrdersWithStock indicates an expected call of CreateOrdersWithStock.
+func (mr *MockOrderRepositoryMockRecorder) CreateOrdersWithStock(ctx, reservations, build any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreatePayment", reflect.TypeOf((*MockOrderRepository)(nil).CreatePayment), ctx, payment)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateOrdersWithStock", reflect.TypeOf((*MockOrderRepository)(nil).CreateOrdersWithStock), ctx, reservations, build)
 }
 
 // FindByID mocks base method.
@@ -117,33 +120,34 @@ func (mr *MockOrderRepositoryMockRecorder) FindByUserID(ctx, userID, page, perPa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByUserID", reflect.TypeOf((*MockOrderRepository)(nil).FindByUserID), ctx, userID, page, perPage)
 }
 
-// FindPaymentByOrderID mocks base method.
-func (m *MockOrderRepository) FindPaymentByOrderID(ctx context.Context, orderID uuid.UUID) (*model.Payment, error) {
+// MarkPaymentFailed mocks base method.
+func (m *MockOrderRepository) MarkPaymentFailed(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "FindPaymentByOrderID", ctx, orderID)
-	ret0, _ := ret[0].(*model.Payment)
+	ret := m.ctrl.Call(m, "MarkPaymentFailed", ctx, orderID)
+	ret0, _ := ret[0].(bool)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// FindPaymentByOrderID indicates an expected call of FindPaymentByOrderID.
-func (mr *MockOrderRepositoryMockRecorder) FindPaymentByOrderID(ctx, orderID any) *gomock.Call {
+// MarkPaymentFailed indicates an expected call of MarkPaymentFailed.
+func (mr *MockOrderRepositoryMockRecorder) MarkPaymentFailed(ctx, orderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPaymentByOrderID", reflect.TypeOf((*MockOrderRepository)(nil).FindPaymentByOrderID), ctx, orderID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkPaymentFailed", reflect.TypeOf((*MockOrderRepository)(nil).MarkPaymentFailed), ctx, orderID)
 }
 
-// UpdatePayment mocks base method.
-func (m *MockOrderRepository) UpdatePayment(ctx context.Context, payment *model.Payment) error {
+// MarkPaymentSucceeded mocks base method.
+func (m *MockOrderRepository) MarkPaymentSucceeded(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdatePayment", ctx, payment)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret := m.ctrl.Call(m, "MarkPaymentSucceeded", ctx, orderID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
-// UpdatePayment indicates an expected call of UpdatePayment.
-func (mr *MockOrderRepositoryMockRecorder) UpdatePayment(ctx, payment any) *gomock.Call {
+// MarkPaymentSucceeded indicates an expected call of MarkPaymentSucceeded.
+func (mr *MockOrderRepositoryMockRecorder) MarkPaymentSucceeded(ctx, orderID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdatePayment", reflect.TypeOf((*MockOrderRepository)(nil).UpdatePayment), ctx, payment)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkPaymentSucceeded", reflect.TypeOf((*MockOrderRepository)(nil).MarkPaymentSucceeded), ctx, orderID)
 }
 
 // UpdateStatusIfCurrent mocks base method.
@@ -159,18 +163,4 @@ func (m *MockOrderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid
 func (mr *MockOrderRepositoryMockRecorder) UpdateStatusIfCurrent(ctx, id, fromStatus, toStatus any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatusIfCurrent", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatusIfCurrent), ctx, id, fromStatus, toStatus)
-}
-
-// UpdateStatus mocks base method.
-func (m *MockOrderRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status string) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateStatus", ctx, id, status)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateStatus indicates an expected call of UpdateStatus.
-func (mr *MockOrderRepositoryMockRecorder) UpdateStatus(ctx, id, status any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStatus", reflect.TypeOf((*MockOrderRepository)(nil).UpdateStatus), ctx, id, status)
 }

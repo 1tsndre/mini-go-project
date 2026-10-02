@@ -35,11 +35,13 @@ func NewCartService(cartRepo repository.CartRepository, productRepo repository.P
 	}
 }
 
-func (s *cartService) lockCart(userID uuid.UUID) (func(), error) {
-	if s.redsync == nil {
+// lockUserCart takes the per-user cart lock shared by cart updates and checkout,
+// so they never interleave on the same cart. A nil rs (unit tests) skips locking.
+func lockUserCart(rs *redsync.Redsync, userID uuid.UUID) (func(), error) {
+	if rs == nil {
 		return func() {}, nil
 	}
-	mutex := s.redsync.NewMutex(fmt.Sprintf(constant.KeyCartLock, userID.String()))
+	mutex := rs.NewMutex(fmt.Sprintf(constant.KeyCartLock, userID.String()))
 	if err := mutex.Lock(); err != nil {
 		return nil, errors.New("failed to acquire cart lock, please try again")
 	}
@@ -73,7 +75,7 @@ func (s *cartService) AddItem(ctx context.Context, userID uuid.UUID, req model.A
 		return nil, errors.New("insufficient stock")
 	}
 
-	unlock, err := s.lockCart(userID)
+	unlock, err := lockUserCart(s.redsync, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +121,7 @@ func (s *cartService) UpdateItem(ctx context.Context, userID uuid.UUID, productI
 		return nil, errors.New("quantity must be greater than 0")
 	}
 
-	unlock, err := s.lockCart(userID)
+	unlock, err := lockUserCart(s.redsync, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +154,7 @@ func (s *cartService) UpdateItem(ctx context.Context, userID uuid.UUID, productI
 }
 
 func (s *cartService) RemoveItem(ctx context.Context, userID uuid.UUID, productID uuid.UUID) (*model.CartResponse, error) {
-	unlock, err := s.lockCart(userID)
+	unlock, err := lockUserCart(s.redsync, userID)
 	if err != nil {
 		return nil, err
 	}

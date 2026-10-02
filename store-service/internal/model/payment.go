@@ -22,6 +22,8 @@ const (
 	PaymentStatusPending = "pending"
 	PaymentStatusSuccess = "success"
 	PaymentStatusFailed  = "failed"
+	// PaymentStatusCancelled marks a payment that was still pending when the buyer cancelled the order.
+	PaymentStatusCancelled = "cancelled"
 
 	PaymentMethodMock = "mock"
 )

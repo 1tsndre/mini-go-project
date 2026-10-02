@@ -142,13 +142,20 @@ func (s *productService) UpdateProduct(ctx context.Context, userID uuid.UUID, id
 		}
 		product.CategoryID = categoryID
 	}
-	if req.Stock != nil {
-		product.Stock = *req.Stock
-	}
 
 	if err := s.productRepo.Update(ctx, product); err != nil {
 		logger.Error(ctx, "failed to update product", err)
 		return nil, errors.New("failed to update product")
+	}
+
+	// Stock is written on its own, never through Update, so a stale product read
+	// above cannot overwrite the atomic decrements made by concurrent checkouts.
+	if req.Stock != nil {
+		if err := s.productRepo.UpdateStock(ctx, id, *req.Stock); err != nil {
+			logger.Error(ctx, "failed to update product stock", err)
+			return nil, errors.New("failed to update product stock")
+		}
+		product.Stock = *req.Stock
 	}
 
 	resp := product.ToResponse()

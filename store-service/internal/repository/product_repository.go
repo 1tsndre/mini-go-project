@@ -114,8 +114,11 @@ func (r *productRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.
 	return &product, nil
 }
 
+// Update never writes stock: stock changes go through UpdateStock or the atomic
+// checkout/cancel paths, otherwise a stale read here would overwrite a
+// concurrent checkout's decrement.
 func (r *productRepository) Update(ctx context.Context, product *model.Product) error {
-	if err := r.db.DB().WithContext(ctx).Save(product).Error; err != nil {
+	if err := r.db.DB().WithContext(ctx).Omit("stock").Save(product).Error; err != nil {
 		return err
 	}
 	cacheKey := fmt.Sprintf(constant.KeyProduct, product.ID.String())
