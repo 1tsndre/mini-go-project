@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
@@ -217,6 +218,28 @@ func TestBuildOrdersByStore(t *testing.T) {
 			assert.True(t, o.TotalAmount.Equal(o.Payment.Amount))
 		}
 	}
+}
+
+func TestOrderService_RetryPendingPayments(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	orderRepo := mocks.NewMockOrderRepository(ctrl)
+	stale := []model.Order{
+		{ID: uuid.New(), UserID: uuid.New(), TotalAmount: decimal.NewFromInt(10)},
+		{ID: uuid.New(), UserID: uuid.New(), TotalAmount: decimal.NewFromInt(20)},
+	}
+	orderRepo.EXPECT().FindStalePending(gomock.Any(), gomock.Any(), 50).Return(stale, nil)
+
+	publisher := &fakePublisher{}
+	svc := NewOrderService(orderRepo, mocks.NewMockCartRepository(ctrl), mocks.NewMockStoreRepository(ctrl), nil, publisher)
+	count, err := svc.RetryPendingPayments(context.Background(), 2*time.Minute, 50)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 2, count)
+	assert.Len(t, publisher.messages, 2)
+	assert.Contains(t, publisher.messages[0], constant.TopicOrderCreated)
+	assert.Contains(t, publisher.messages[0], stale[0].ID.String())
 }
 
 func TestOrderService_GetOrders(t *testing.T) {

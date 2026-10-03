@@ -12,6 +12,7 @@ import (
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/pkg/upload"
 	"github.com/1tsndre/mini-go-project/store-service/internal/config"
+	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	paymentclient "github.com/1tsndre/mini-go-project/store-service/internal/grpc/payment"
 	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
 	"github.com/1tsndre/mini-go-project/store-service/internal/nsq"
@@ -20,6 +21,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases/postgres"
 	"github.com/1tsndre/mini-go-project/store-service/internal/router"
 	"github.com/1tsndre/mini-go-project/store-service/internal/service"
+	"github.com/1tsndre/mini-go-project/store-service/internal/worker"
 	goredis "github.com/redis/go-redis/v9"
 
 	"github.com/go-redsync/redsync/v4"
@@ -114,6 +116,9 @@ func main() {
 		})
 	}
 
+	paymentRetrier := worker.NewPaymentRetrier(orderService, constant.PaymentRetryInterval, constant.PaymentRetryAfter, constant.PaymentRetryBatchSize)
+	paymentRetrier.Start()
+
 	handler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, cfg.App.RequestTimeout, cfg.Rate)
 
 	server := &http.Server{
@@ -142,6 +147,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(ctx, cfg.App.ShutdownTimeout)
 	defer cancel()
 
+	paymentRetrier.Stop()
 	paymentConsumer.Stop()
 	nsqProducer.Stop()
 	paymentClient.Close()

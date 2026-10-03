@@ -46,6 +46,7 @@ type OrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
 	FindByStoreID(ctx context.Context, storeID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
+	FindStalePending(ctx context.Context, createdBefore time.Time, limit int) ([]model.Order, error)
 	UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
 	// CancelAndRestock moves the order from fromStatus to cancelled, returns its items
 	// to stock and closes a still-pending payment, all in one transaction. It reports
@@ -180,6 +181,16 @@ func (r *orderRepository) FindByStoreID(ctx context.Context, storeID uuid.UUID, 
 		Find(&orders).Error
 
 	return orders, total, err
+}
+
+func (r *orderRepository) FindStalePending(ctx context.Context, createdBefore time.Time, limit int) ([]model.Order, error) {
+	var orders []model.Order
+	err := r.db.DB().WithContext(ctx).
+		Where("status = ? AND created_at < ?", constant.OrderStatusPending, createdBefore).
+		Order("created_at ASC").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
 }
 
 func (r *orderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {

@@ -12,6 +12,7 @@ package mocks
 import (
 	context "context"
 	reflect "reflect"
+	time "time"
 
 	model "github.com/1tsndre/mini-go-project/store-service/internal/model"
 	repository "github.com/1tsndre/mini-go-project/store-service/internal/repository"
@@ -118,6 +119,21 @@ func (m *MockOrderRepository) FindByUserID(ctx context.Context, userID uuid.UUID
 func (mr *MockOrderRepositoryMockRecorder) FindByUserID(ctx, userID, page, perPage any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByUserID", reflect.TypeOf((*MockOrderRepository)(nil).FindByUserID), ctx, userID, page, perPage)
+}
+
+// FindStalePending mocks base method.
+func (m *MockOrderRepository) FindStalePending(ctx context.Context, createdBefore time.Time, limit int) ([]model.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindStalePending", ctx, createdBefore, limit)
+	ret0, _ := ret[0].([]model.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindStalePending indicates an expected call of FindStalePending.
+func (mr *MockOrderRepositoryMockRecorder) FindStalePending(ctx, createdBefore, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindStalePending", reflect.TypeOf((*MockOrderRepository)(nil).FindStalePending), ctx, createdBefore, limit)
 }
 
 // MarkPaymentFailed mocks base method.

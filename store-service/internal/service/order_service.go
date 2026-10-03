@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
@@ -30,6 +31,10 @@ type OrderService interface {
 	UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error
 	GetSellerOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 	ProcessPaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error
+	// RetryPendingPayments republishes order.created for orders still pending after
+	// olderThan, covering publishes that failed or were lost. It returns how many
+	// orders were republished.
+	RetryPendingPayments(ctx context.Context, olderThan time.Duration, limit int) (int, error)
 }
 
 type orderService struct {
@@ -113,8 +118,8 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		})
 	}
 
-	// A failed publish is logged but does not fail the checkout: the orders are
-	// already committed.
+	// A failed publish is not fatal: the order stays pending and the payment
+	// retry worker republishes it later.
 	for _, order := range orders {
 		s.publishOrderCreated(ctx, order)
 	}
@@ -175,9 +180,9 @@ func buildOrdersByStore(userID uuid.UUID, shippingAddress string, items []model.
 	return orders
 }
 
-func (s *orderService) publishOrderCreated(ctx context.Context, order *model.Order) {
+func (s *orderService) publishOrderCreated(ctx context.Context, order *model.Order) bool {
 	if s.publisher == nil {
-		return
+		return false
 	}
 
 	msg, err := json.Marshal(map[string]interface{}{
@@ -187,13 +192,30 @@ func (s *orderService) publishOrderCreated(ctx context.Context, order *model.Ord
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to marshal order.created payload", err)
-		return
+		return false
 	}
 	if err := s.publisher.Publish(constant.TopicOrderCreated, msg); err != nil {
 		logger.Error(ctx, "failed to publish order.created", err, map[string]interface{}{
 			"order_id": order.ID.String(),
 		})
+		return false
 	}
+	return true
+}
+
+func (s *orderService) RetryPendingPayments(ctx context.Context, olderThan time.Duration, limit int) (int, error) {
+	orders, err := s.orderRepo.FindStalePending(ctx, time.Now().Add(-olderThan), limit)
+	if err != nil {
+		return 0, err
+	}
+
+	published := 0
+	for i := range orders {
+		if s.publishOrderCreated(ctx, &orders[i]) {
+			published++
+		}
+	}
+	return published, nil
 }
 
 func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error) {
