@@ -56,13 +56,20 @@ func (c *PaymentResultConsumer) Start(lookupdAddr string) error {
 	return nil
 }
 
+// Stop stops both consumers and waits for in-flight messages to finish, so no
+// handler is still running when the caller closes Redis afterwards.
 func (c *PaymentResultConsumer) Stop() {
 	ctx := context.Background()
-	if c.successConsumer != nil {
-		c.successConsumer.Stop()
+	consumers := []*nsq.Consumer{c.successConsumer, c.failedConsumer}
+	for _, consumer := range consumers {
+		if consumer != nil {
+			consumer.Stop()
+		}
 	}
-	if c.failedConsumer != nil {
-		c.failedConsumer.Stop()
+	for _, consumer := range consumers {
+		if consumer != nil {
+			<-consumer.StopChan
+		}
 	}
 	logger.Info(ctx, "NSQ payment result consumers stopped")
 }

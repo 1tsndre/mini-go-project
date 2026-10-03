@@ -63,6 +63,7 @@ func main() {
 	<-quit
 
 	logger.Info(ctx, "shutting down payment service...")
+	orderConsumer.Stop()
 	nsqProducer.Stop()
 	grpcServer.GracefulStop()
 	logger.Info(ctx, "payment service stopped")

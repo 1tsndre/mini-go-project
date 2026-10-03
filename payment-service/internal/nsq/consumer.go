@@ -20,6 +20,7 @@ const (
 type OrderConsumer struct {
 	paymentService *service.PaymentService
 	producer       *nsq.Producer
+	consumer       *nsq.Consumer
 }
 
 func NewOrderConsumer(svc *service.PaymentService, producer *nsq.Producer) *OrderConsumer {
@@ -43,9 +44,21 @@ func (c *OrderConsumer) Start(lookupdAddr string) error {
 	if err := consumer.ConnectToNSQLookupd(lookupdAddr); err != nil {
 		return err
 	}
+	c.consumer = consumer
 
 	logger.Info(context.Background(), "NSQ order consumer started")
 	return nil
+}
+
+// Stop stops consuming and waits for in-flight messages to finish, so their
+// results can still be published before the producer is stopped.
+func (c *OrderConsumer) Stop() {
+	if c.consumer == nil {
+		return
+	}
+	c.consumer.Stop()
+	<-c.consumer.StopChan
+	logger.Info(context.Background(), "NSQ order consumer stopped")
 }
 
 func (c *OrderConsumer) handleOrderCreated(message *nsq.Message) error {
