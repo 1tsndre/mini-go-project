@@ -11,6 +11,8 @@ const (
 	LogNSQConsumerFailed    = "failed to start NSQ consumer"
 	LogPaymentClientFailed  = "failed to create payment gRPC client"
 	LogPaymentClientReady   = "payment gRPC client ready"
+	LogRepublishFailed      = "failed to republish pending orders"
+	LogRepublished          = "republished pending orders"
 	LogServerStarting       = "server starting"
 	LogServerFailed         = "server failed"
 	LogServerShuttingDown   = "shutting down server..."

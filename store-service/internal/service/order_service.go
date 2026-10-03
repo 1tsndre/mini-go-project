@@ -28,6 +28,7 @@ type OrderService interface {
 	UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID, id uuid.UUID, status string) error
 	GetSellerOrders(ctx context.Context, sellerID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 	ProcessPaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error
+	RepublishPending(ctx context.Context) (int, error)
 }
 
 type orderService struct {
@@ -161,6 +162,18 @@ func (s *orderService) cancelUnpublished(ctx context.Context, userID uuid.UUID, 
 			"user_id": userID.String(),
 		})
 	}
+}
+
+func (s *orderService) RepublishPending(ctx context.Context) (int, error) {
+	orders, err := s.orderRepo.FindPending(ctx)
+	if err != nil || len(orders) == 0 {
+		return 0, err
+	}
+
+	if err := s.publishCreated(orders); err != nil {
+		return 0, err
+	}
+	return len(orders), nil
 }
 
 func (s *orderService) GetOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error) {

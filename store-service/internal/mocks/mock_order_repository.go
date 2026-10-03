@@ -119,6 +119,21 @@ func (mr *MockOrderRepositoryMockRecorder) FindByUserID(ctx, userID, page, perPa
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindByUserID", reflect.TypeOf((*MockOrderRepository)(nil).FindByUserID), ctx, userID, page, perPage)
 }
 
+// FindPending mocks base method.
+func (m *MockOrderRepository) FindPending(ctx context.Context) ([]*model.Order, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FindPending", ctx)
+	ret0, _ := ret[0].([]*model.Order)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FindPending indicates an expected call of FindPending.
+func (mr *MockOrderRepositoryMockRecorder) FindPending(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindPending", reflect.TypeOf((*MockOrderRepository)(nil).FindPending), ctx)
+}
+
 // MarkPaymentFailed mocks base method.
 func (m *MockOrderRepository) MarkPaymentFailed(ctx context.Context, orderID uuid.UUID) (bool, error) {
 	m.ctrl.T.Helper()

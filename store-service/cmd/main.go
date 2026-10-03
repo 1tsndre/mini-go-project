@@ -111,6 +111,13 @@ func main() {
 		logger.Fatal(ctx, constant.LogNSQConsumerFailed, err)
 	}
 
+	// Covers messages lost while this service or NSQ was down.
+	if count, err := orderService.RepublishPending(ctx); err != nil {
+		logger.Error(ctx, constant.LogRepublishFailed, err)
+	} else if count > 0 {
+		logger.Info(ctx, constant.LogRepublished, logger.Fields{"count": count})
+	}
+
 	maxBodyBytes := cfg.Upload.MaxSize + constant.MultipartOverhead
 	httpHandler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
 

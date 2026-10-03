@@ -26,6 +26,7 @@ type OrderRepository interface {
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
 	FindByStoreID(ctx context.Context, storeID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
+	FindPending(ctx context.Context) ([]*model.Order, error)
 	UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error)
 	// The methods below report false if the order was not in the expected status.
 	CancelAndRestock(ctx context.Context, id uuid.UUID, fromStatus string) (bool, error)
@@ -251,6 +252,16 @@ func (r *orderRepository) loadDetails(ctx context.Context, orders []model.Order)
 		byID[payments[i].OrderID].Payment = &payments[i]
 	}
 	return nil
+}
+
+func (r *orderRepository) FindPending(ctx context.Context) ([]*model.Order, error) {
+	var orders []*model.Order
+
+	err := r.db.SelectContext(ctx, &orders,
+		"SELECT "+orderColumns+" FROM orders WHERE status = $1 ORDER BY created_at",
+		constant.OrderStatusPending,
+	)
+	return orders, translateDatabaseError(err)
 }
 
 func (r *orderRepository) UpdateStatusIfCurrent(ctx context.Context, id uuid.UUID, fromStatus, toStatus string) (bool, error) {

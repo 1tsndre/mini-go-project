@@ -219,6 +219,49 @@ func TestOrderService_Checkout_CancelsUnpublishedOrdersAfterTimeout(t *testing.T
 	assert.ErrorContains(t, err, constant.MsgCheckoutFailed)
 }
 
+func TestOrderService_RepublishPending(t *testing.T) {
+	pending := []*model.Order{
+		{ID: uuid.New(), UserID: uuid.New(), TotalAmount: decimal.NewFromInt(10)},
+		{ID: uuid.New(), UserID: uuid.New(), TotalAmount: decimal.NewFromInt(20)},
+	}
+
+	tests := []struct {
+		name       string
+		pending    []*model.Order
+		findErr    error
+		publishErr error
+		wantCount  int
+		wantErr    bool
+	}{
+		{name: "publishes every pending order", pending: pending, wantCount: 2},
+		{name: "nothing pending, nothing published"},
+		{name: "query fails", findErr: errors.New("db down"), wantErr: true},
+		{name: "publish fails", pending: pending, publishErr: errors.New("nsqd down"), wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				ctrl      = gomock.NewController(t)
+				orderRepo = mocks.NewMockOrderRepository(ctrl)
+			)
+
+			orderRepo.EXPECT().FindPending(gomock.Any()).Return(tt.pending, tt.findErr)
+
+			publisher := &fakePublisher{err: tt.publishErr}
+			svc := NewOrderService(orderRepo, mocks.NewMockCartRepository(ctrl), mocks.NewMockStoreRepository(ctrl), nil, publisher)
+			count, err := svc.RepublishPending(context.Background())
+
+			assert.Equal(t, tt.wantErr, err != nil)
+			assert.Equal(t, tt.wantCount, count)
+			assert.Len(t, publisher.messages, tt.wantCount)
+			for i, message := range publisher.messages {
+				assert.Contains(t, message, pending[i].ID.String())
+			}
+		})
+	}
+}
+
 func TestOrderService_GetOrders(t *testing.T) {
 	userID := uuid.New()
 
