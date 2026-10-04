@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"gorm.io/gorm"
 )
 
 func TestReviewService_CreateReview(t *testing.T) {
@@ -90,6 +91,19 @@ func TestReviewService_CreateReview(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "failed to create review",
+		},
+		{
+			name:      "concurrent duplicate review",
+			userID:    userID,
+			productID: productID,
+			req:       model.CreateReviewRequest{Rating: 5, Comment: "Great"},
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(true, nil)
+				repo.EXPECT().HasUserReviewed(gomock.Any(), userID, productID).Return(false, nil)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(gorm.ErrDuplicatedKey)
+			},
+			wantErr:     true,
+			errContains: "you have already reviewed",
 		},
 	}
 

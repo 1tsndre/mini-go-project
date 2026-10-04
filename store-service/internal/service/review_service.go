@@ -9,6 +9,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/pagination"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type ReviewService interface {
@@ -53,6 +54,10 @@ func (s *reviewService) CreateReview(ctx context.Context, userID uuid.UUID, prod
 	}
 
 	if err := s.repo.Create(ctx, review); err != nil {
+		// A concurrent review by the same user passed the check above.
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errors.New("you have already reviewed this product")
+		}
 		logger.Error(ctx, "failed to create review", err)
 		return nil, errors.New("failed to create review")
 	}

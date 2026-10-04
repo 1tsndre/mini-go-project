@@ -10,6 +10,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AuthService interface {
@@ -50,6 +51,10 @@ func (s *authService) Register(ctx context.Context, req model.RegisterRequest) (
 	}
 
 	if err := s.userRepo.Create(ctx, user); err != nil {
+		// A concurrent registration with the same email passed the check above.
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, errors.New("email already registered")
+		}
 		logger.Error(ctx, "failed to create user", err)
 		return nil, errors.New("failed to create user")
 	}

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -69,6 +70,20 @@ func TestAuthService_Register(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "failed to create user",
+		},
+		{
+			name: "concurrent registration with same email",
+			req: model.RegisterRequest{
+				Email:    "test@example.com",
+				Password: "password123",
+				Name:     "Test User",
+			},
+			mockSetup: func(repo *mocks.MockUserRepository) {
+				repo.EXPECT().FindByEmail(gomock.Any(), "test@example.com").Return(nil, errors.New("not found"))
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(gorm.ErrDuplicatedKey)
+			},
+			wantErr:     true,
+			errContains: "email already registered",
 		},
 	}
 

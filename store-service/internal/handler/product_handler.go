@@ -209,6 +209,9 @@ func (h *ProductHandler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	if err := h.service.DeleteProduct(r.Context(), userID, id); err != nil {
 		msg := err.Error()
 		switch {
+		case strings.Contains(msg, "in use"):
+			response.ErrorResponse(w, http.StatusConflict, meta,
+				response.NewError(constant.ErrCodeConflict, msg))
 		case strings.Contains(msg, "not found"):
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))

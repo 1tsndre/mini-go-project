@@ -11,6 +11,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"gorm.io/gorm"
 )
 
 func TestProductService_CreateProduct(t *testing.T) {
@@ -221,6 +222,18 @@ func TestProductService_DeleteProduct(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "product not found",
+		},
+		{
+			name:      "still referenced by orders or carts",
+			userID:    userID,
+			productID: productID,
+			mockSetup: func(prodRepo *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{ID: storeID, UserID: userID}, nil)
+				prodRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, StoreID: storeID}, nil)
+				prodRepo.EXPECT().Delete(gomock.Any(), productID).Return(gorm.ErrForeignKeyViolated)
+			},
+			wantErr:     true,
+			errContains: "in use",
 		},
 	}
 

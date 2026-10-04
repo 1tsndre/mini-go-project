@@ -22,6 +22,9 @@ func NewPostgresDB(dsn string, env string) (databases.Database, error) {
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logLevel),
+		// Map driver errors to gorm.ErrDuplicatedKey / gorm.ErrForeignKeyViolated
+		// so services can detect them with errors.Is.
+		TranslateError: true,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
+	"gorm.io/gorm"
 )
 
 func TestCategoryService_CreateCategory(t *testing.T) {
@@ -145,6 +146,16 @@ func TestCategoryService_DeleteCategory(t *testing.T) {
 			},
 			wantErr:     true,
 			errContains: "category not found",
+		},
+		{
+			name: "still referenced by products",
+			id:   catID,
+			mockSetup: func(repo *mocks.MockCategoryRepository) {
+				repo.EXPECT().FindByID(gomock.Any(), catID).Return(&model.Category{ID: catID, Name: "Electronics"}, nil)
+				repo.EXPECT().Delete(gomock.Any(), catID).Return(gorm.ErrForeignKeyViolated)
+			},
+			wantErr:     true,
+			errContains: "in use",
 		},
 	}
 

@@ -94,6 +94,9 @@ func (h *CategoryHandler) UpdateCategory(w http.ResponseWriter, r *http.Request)
 		if strings.Contains(msg, "not found") {
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))
+		} else if strings.Contains(msg, "already exists") {
+			response.ErrorResponse(w, http.StatusConflict, meta,
+				response.NewError(constant.ErrCodeConflict, msg))
 		} else {
 			response.ErrorResponse(w, http.StatusInternalServerError, meta,
 				response.NewError(constant.ErrCodeInternal, msg))
@@ -120,6 +123,9 @@ func (h *CategoryHandler) DeleteCategory(w http.ResponseWriter, r *http.Request)
 		if strings.Contains(msg, "not found") {
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))
+		} else if strings.Contains(msg, "in use") {
+			response.ErrorResponse(w, http.StatusConflict, meta,
+				response.NewError(constant.ErrCodeConflict, msg))
 		} else {
 			response.ErrorResponse(w, http.StatusInternalServerError, meta,
 				response.NewError(constant.ErrCodeInternal, msg))
