@@ -72,7 +72,7 @@ func (s *cartService) AddItem(ctx context.Context, userID uuid.UUID, req model.A
 	}
 
 	if product.Stock < req.Quantity {
-		return nil, errors.New("insufficient stock")
+		return nil, ErrInsufficientStock
 	}
 
 	unlock, err := lockUserCart(s.redsync, userID)

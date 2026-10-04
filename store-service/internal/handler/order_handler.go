@@ -59,6 +59,9 @@ func (h *OrderHandler) Checkout(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := err.Error()
 		switch {
+		case isInsufficientStock(err):
+			response.ErrorResponse(w, http.StatusBadRequest, meta,
+				response.NewError(constant.ErrCodeInsufficientStock, msg))
 		case strings.Contains(msg, "not found"):
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))
@@ -220,6 +223,9 @@ func (h *OrderHandler) UpdateOrderStatus(w http.ResponseWriter, r *http.Request)
 	if err := h.service.UpdateOrderStatus(r.Context(), userID, id, req.Status); err != nil {
 		msg := err.Error()
 		switch {
+		case isInvalidStatusTransition(err):
+			response.ErrorResponse(w, http.StatusBadRequest, meta,
+				response.NewError(constant.ErrCodeInvalidStatus, msg))
 		case strings.Contains(msg, "not found"):
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))

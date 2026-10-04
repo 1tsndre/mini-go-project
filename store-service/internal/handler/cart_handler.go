@@ -78,6 +78,9 @@ func (h *CartHandler) AddItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := err.Error()
 		switch {
+		case isInsufficientStock(err):
+			response.ErrorResponse(w, http.StatusBadRequest, meta,
+				response.NewError(constant.ErrCodeInsufficientStock, msg))
 		case strings.Contains(msg, "not found"):
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))
@@ -132,6 +135,9 @@ func (h *CartHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := err.Error()
 		switch {
+		case isInsufficientStock(err):
+			response.ErrorResponse(w, http.StatusBadRequest, meta,
+				response.NewError(constant.ErrCodeInsufficientStock, msg))
 		case strings.Contains(msg, "not found"):
 			response.ErrorResponse(w, http.StatusNotFound, meta,
 				response.NewError(constant.ErrCodeNotFound, msg))

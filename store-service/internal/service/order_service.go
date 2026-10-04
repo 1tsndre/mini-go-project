@@ -103,7 +103,7 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		var insufficient *repository.ErrInsufficientStock
 		switch {
 		case errors.As(err, &insufficient):
-			return nil, fmt.Errorf("insufficient stock for product %s", insufficient.ProductName)
+			return nil, fmt.Errorf("%w for product %s", ErrInsufficientStock, insufficient.ProductName)
 		case errors.As(err, &notFound):
 			return nil, err
 		default:
@@ -288,7 +288,7 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID
 
 	allowed, ok := constant.OrderStatusTransitions[order.Status]
 	if !ok {
-		return fmt.Errorf("cannot transition from status %s", order.Status)
+		return fmt.Errorf("cannot transition from status %s: %w", order.Status, ErrInvalidStatusTransition)
 	}
 
 	valid := false
@@ -300,7 +300,7 @@ func (s *orderService) UpdateOrderStatus(ctx context.Context, sellerID uuid.UUID
 	}
 
 	if !valid {
-		return fmt.Errorf("invalid status transition from %s to %s", order.Status, status)
+		return fmt.Errorf("%w from %s to %s", ErrInvalidStatusTransition, order.Status, status)
 	}
 
 	store, err := s.storeRepo.FindByUserID(ctx, sellerID)
