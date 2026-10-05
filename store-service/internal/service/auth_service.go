@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/1tsndre/mini-go-project/pkg/jwt"
 	"github.com/1tsndre/mini-go-project/pkg/logger"
@@ -31,8 +32,18 @@ func NewAuthService(userRepo repository.UserRepository, jwtManager *jwt.JWTManag
 	}
 }
 
+// normalizeEmail lower-cases an email address. Emails are effectively
+// case-insensitive (mobile keyboards capitalise the first letter), so an account
+// registered as "Andreas@x.com" must be reachable as "andreas@x.com" and must not
+// be registrable twice.
+func normalizeEmail(email string) string {
+	return strings.ToLower(email)
+}
+
 func (s *authService) Register(ctx context.Context, req model.RegisterRequest) (*model.UserResponse, error) {
-	existing, _ := s.userRepo.FindByEmail(ctx, req.Email)
+	email := normalizeEmail(req.Email)
+
+	existing, _ := s.userRepo.FindByEmail(ctx, email)
 	if existing != nil {
 		return nil, errors.New("email already registered")
 	}
@@ -44,7 +55,7 @@ func (s *authService) Register(ctx context.Context, req model.RegisterRequest) (
 	}
 
 	user := &model.User{
-		Email:    req.Email,
+		Email:    email,
 		Password: string(hashedPassword),
 		Name:     req.Name,
 		Role:     constant.RoleBuyer,
@@ -69,7 +80,7 @@ func (s *authService) Register(ctx context.Context, req model.RegisterRequest) (
 }
 
 func (s *authService) Login(ctx context.Context, req model.LoginRequest) (*jwt.TokenPair, error) {
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	user, err := s.userRepo.FindByEmail(ctx, normalizeEmail(req.Email))
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}

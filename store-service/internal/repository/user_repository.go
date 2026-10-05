@@ -36,9 +36,11 @@ func (r *userRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.Use
 	return &user, nil
 }
 
+// FindByEmail matches case-insensitively, which also finds accounts stored with
+// mixed-case emails before registration started lower-casing them.
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
-	err := r.db.DB().WithContext(ctx).First(&user, "email = ?", email).Error
+	err := r.db.DB().WithContext(ctx).First(&user, "lower(email) = lower(?)", email).Error
 	if err != nil {
 		return nil, err
 	}
