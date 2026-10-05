@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
@@ -257,4 +258,50 @@ func TestProductService_DeleteProduct(t *testing.T) {
 			assert.NoError(t, err)
 		})
 	}
+}
+
+// Prices and stock must fit the DECIMAL(15,2) and INTEGER columns exactly;
+// otherwise PostgreSQL rejects them (a 500) or silently rounds the price.
+func TestValidatePriceAndStock(t *testing.T) {
+	priceTests := []struct {
+		price   string
+		wantErr string
+	}{
+		{price: "0", wantErr: "greater than 0"},
+		{price: "-1", wantErr: "greater than 0"},
+		{price: "0.01"},
+		{price: "100.000"},
+		{price: "9999999999999.99"},
+		{price: "10000000000000", wantErr: "too large"},
+		{price: "10.005", wantErr: "at most 2 decimal places"},
+	}
+	for _, tt := range priceTests {
+		err := validatePrice(decimal.RequireFromString(tt.price))
+		if tt.wantErr == "" {
+			assert.NoError(t, err, tt.price)
+			continue
+		}
+		assert.ErrorContains(t, err, tt.wantErr, tt.price)
+	}
+
+	assert.ErrorContains(t, validateStock(-1), "must not be negative")
+	assert.NoError(t, validateStock(0))
+	assert.NoError(t, validateStock(math.MaxInt32))
+	assert.ErrorContains(t, validateStock(math.MaxInt32+1), "too large")
+}
+
+func TestProductService_CreateProduct_RejectsPriceTheColumnCannotHold(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	userID := uuid.New()
+	storeRepo := mocks.NewMockStoreRepository(ctrl)
+	storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{ID: uuid.New(), UserID: userID}, nil)
+
+	svc := NewProductService(mocks.NewMockProductRepository(ctrl), storeRepo)
+	_, err := svc.CreateProduct(context.Background(), userID, model.CreateProductRequest{
+		CategoryID: uuid.New().String(),
+		Name:       "Laptop",
+		Price:      "99999999999999",
+	})
+
+	assert.ErrorContains(t, err, "price is too large")
 }

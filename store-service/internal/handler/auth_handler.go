@@ -37,6 +37,8 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	var errors []response.Error
 	if req.Email == "" {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "email", "is required"))
+	} else if exceedsVarchar(req.Email) {
+		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "email", maxVarcharMessage))
 	} else if !emailRegex.MatchString(req.Email) {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "email", "invalid email format"))
 	}
@@ -44,9 +46,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "password", "is required"))
 	} else if len(req.Password) < 6 {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "password", "minimum 6 characters"))
+	} else if len(req.Password) > constant.MaxPasswordBytes {
+		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "password", maxPasswordMessage))
 	}
 	if req.Name == "" {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "name", "is required"))
+	} else if exceedsVarchar(req.Name) {
+		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "name", maxVarcharMessage))
 	}
 	if len(errors) > 0 {
 		response.ValidationError(w, meta, errors)

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"math"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
@@ -34,6 +35,35 @@ func NewProductService(productRepo repository.ProductRepository, storeRepo repos
 	}
 }
 
+// maxPrice is the smallest price that no longer fits the DECIMAL(15,2) columns.
+var maxPrice = decimal.New(1, 13)
+
+// validatePrice rejects prices PostgreSQL would refuse or silently round, so the
+// stored price is always exactly the one the seller sent.
+func validatePrice(price decimal.Decimal) error {
+	if !price.IsPositive() {
+		return errors.New("price must be greater than 0")
+	}
+	if price.GreaterThanOrEqual(maxPrice) {
+		return errors.New("price is too large")
+	}
+	if !price.Equal(price.Round(2)) {
+		return errors.New("price must have at most 2 decimal places")
+	}
+	return nil
+}
+
+// validateStock rejects stock values the INTEGER column cannot hold.
+func validateStock(stock int) error {
+	if stock < 0 {
+		return errors.New("stock must not be negative")
+	}
+	if stock > math.MaxInt32 {
+		return errors.New("stock is too large")
+	}
+	return nil
+}
+
 func (s *productService) getStoreByOwner(ctx context.Context, userID uuid.UUID) (*model.Store, error) {
 	store, err := s.storeRepo.FindByUserID(ctx, userID)
 	if err != nil {
@@ -56,6 +86,12 @@ func (s *productService) CreateProduct(ctx context.Context, userID uuid.UUID, re
 	price, err := decimal.NewFromString(req.Price)
 	if err != nil {
 		return nil, errors.New("invalid price")
+	}
+	if err := validatePrice(price); err != nil {
+		return nil, err
+	}
+	if err := validateStock(req.Stock); err != nil {
+		return nil, err
 	}
 
 	product := &model.Product{
@@ -137,6 +173,9 @@ func (s *productService) UpdateProduct(ctx context.Context, userID uuid.UUID, id
 		if err != nil {
 			return nil, errors.New("invalid price")
 		}
+		if err := validatePrice(price); err != nil {
+			return nil, err
+		}
 		product.Price = price
 	}
 	if req.CategoryID != "" {
@@ -145,6 +184,11 @@ func (s *productService) UpdateProduct(ctx context.Context, userID uuid.UUID, id
 			return nil, errors.New("invalid category_id")
 		}
 		product.CategoryID = categoryID
+	}
+	if req.Stock != nil {
+		if err := validateStock(*req.Stock); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.productRepo.Update(ctx, product); err != nil {

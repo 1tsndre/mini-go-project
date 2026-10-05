@@ -48,6 +48,12 @@ func (h *StoreHandler) CreateStore(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if exceedsVarchar(req.Name) {
+		response.ValidationError(w, meta, []response.Error{
+			response.NewFieldError(constant.ErrCodeValidation, "name", maxVarcharMessage),
+		})
+		return
+	}
 
 	resp, err := h.service.CreateStore(r.Context(), userID, req)
 	if err != nil {
@@ -111,6 +117,13 @@ func (h *StoreHandler) UpdateStore(w http.ResponseWriter, r *http.Request) {
 		response.ErrorResponse(w, http.StatusBadRequest, meta,
 			response.NewError(constant.ErrCodeValidation, "invalid request body"),
 		)
+		return
+	}
+
+	if exceedsVarchar(req.Name) {
+		response.ValidationError(w, meta, []response.Error{
+			response.NewFieldError(constant.ErrCodeValidation, "name", maxVarcharMessage),
+		})
 		return
 	}
 

@@ -47,6 +47,8 @@ func (h *ProductHandler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	var errors []response.Error
 	if req.Name == "" {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "name", "is required"))
+	} else if exceedsVarchar(req.Name) {
+		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "name", maxVarcharMessage))
 	}
 	if req.Price == "" {
 		errors = append(errors, response.NewFieldError(constant.ErrCodeValidation, "price", "is required"))
@@ -86,9 +88,17 @@ func (h *ProductHandler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	page, _ := strconv.Atoi(q.Get("page"))
 	perPage, _ := strconv.Atoi(q.Get("per_page"))
 
+	// The IDs are compared against UUID columns, where PostgreSQL rejects anything
+	// that is not a UUID; pass them on in canonical form or reject them as a 400.
+	categoryID, storeID, fieldErrs := parseIDFilters(q.Get("category_id"), q.Get("store_id"))
+	if len(fieldErrs) > 0 {
+		response.ValidationError(w, meta, fieldErrs)
+		return
+	}
+
 	filter := model.ProductFilter{
-		CategoryID: q.Get("category_id"),
-		StoreID:    q.Get("store_id"),
+		CategoryID: categoryID,
+		StoreID:    storeID,
 		Search:     q.Get("search"),
 		MinPrice:   q.Get("min_price"),
 		MaxPrice:   q.Get("max_price"),
@@ -161,6 +171,13 @@ func (h *ProductHandler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		response.ErrorResponse(w, http.StatusBadRequest, meta,
 			response.NewError(constant.ErrCodeValidation, "invalid request body"),
 		)
+		return
+	}
+
+	if exceedsVarchar(req.Name) {
+		response.ValidationError(w, meta, []response.Error{
+			response.NewFieldError(constant.ErrCodeValidation, "name", maxVarcharMessage),
+		})
 		return
 	}
 
@@ -282,4 +299,22 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response.Success(w, http.StatusOK, resp, meta)
+}
+
+func parseIDFilters(categoryID, storeID string) (string, string, []response.Error) {
+	var fieldErrs []response.Error
+	canonical := func(field, value string) string {
+		if value == "" {
+			return ""
+		}
+		id, err := uuid.Parse(value)
+		if err != nil {
+			fieldErrs = append(fieldErrs, response.NewFieldError(constant.ErrCodeValidation, field, "must be a valid UUID"))
+			return ""
+		}
+		return id.String()
+	}
+	categoryID = canonical("category_id", categoryID)
+	storeID = canonical("store_id", storeID)
+	return categoryID, storeID, fieldErrs
 }
