@@ -119,7 +119,9 @@ func main() {
 	paymentRetrier := worker.NewPaymentRetrier(orderService, constant.PaymentRetryInterval, constant.PaymentRetryAfter, constant.PaymentRetryBatchSize)
 	paymentRetrier.Start()
 
-	handler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, cfg.App.RequestTimeout, cfg.Rate)
+	// Uploads are the largest bodies we accept; leave 1 MiB headroom for multipart overhead.
+	maxBodyBytes := cfg.Upload.MaxSize + 1<<20
+	handler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
 
 	server := &http.Server{
 		Addr:         ":" + cfg.App.Port,

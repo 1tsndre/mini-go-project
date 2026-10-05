@@ -28,6 +28,7 @@ func NewRouter(
 	jwtManager *jwt.JWTManager,
 	redisClient *redis.Client,
 	uploadDir string,
+	maxBodyBytes int64,
 	requestTimeout time.Duration,
 	rateCfg config.RateConfig,
 ) http.Handler {
@@ -98,6 +99,7 @@ func NewRouter(
 	return middleware.Chain(mux,
 		middleware.RequestID,
 		middleware.Logging,
+		middleware.MaxBodyBytes(maxBodyBytes),
 		middleware.Timeout(requestTimeout),
 		middleware.Recovery,
 		middleware.MethodNotAllowed,

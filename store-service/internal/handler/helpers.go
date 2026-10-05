@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"unicode/utf8"
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
@@ -18,6 +19,11 @@ var (
 // PostgreSQL counts characters, not bytes.
 func exceedsVarchar(s string) bool {
 	return utf8.RuneCountInString(s) > constant.MaxVarcharLength
+}
+
+func isBodyTooLarge(err error) bool {
+	var maxErr *http.MaxBytesError
+	return errors.As(err, &maxErr)
 }
 
 // isInsufficientStock reports whether err means a product cannot cover the

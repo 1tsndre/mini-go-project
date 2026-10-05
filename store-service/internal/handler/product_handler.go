@@ -266,6 +266,12 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("image")
 	if err != nil {
+		if isBodyTooLarge(err) {
+			response.ErrorResponse(w, http.StatusRequestEntityTooLarge, meta,
+				response.NewError(constant.ErrCodeValidation, "request body too large"),
+			)
+			return
+		}
 		response.ErrorResponse(w, http.StatusBadRequest, meta,
 			response.NewError(constant.ErrCodeValidation, "image file is required"),
 		)

@@ -168,6 +168,12 @@ func (h *StoreHandler) UploadLogo(w http.ResponseWriter, r *http.Request) {
 
 	file, header, err := r.FormFile("logo")
 	if err != nil {
+		if isBodyTooLarge(err) {
+			response.ErrorResponse(w, http.StatusRequestEntityTooLarge, meta,
+				response.NewError(constant.ErrCodeValidation, "request body too large"),
+			)
+			return
+		}
 		response.ErrorResponse(w, http.StatusBadRequest, meta,
 			response.NewError(constant.ErrCodeValidation, "logo file is required"),
 		)
