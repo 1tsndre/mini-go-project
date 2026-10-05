@@ -289,6 +289,7 @@ func (h *ProductHandler) UploadImage(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := h.service.UpdateImage(r.Context(), userID, id, path)
 	if err != nil {
+		h.uploader.Delete(path)
 		msg := err.Error()
 		switch {
 		case strings.Contains(msg, "not found"):

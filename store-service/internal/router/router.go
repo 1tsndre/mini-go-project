@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/jwt"
@@ -48,15 +49,10 @@ func NewRouter(
 		response.Success(w, http.StatusOK, map[string]string{"status": "ok"}, meta)
 	})
 
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		meta := middleware.BuildMeta(r)
-		response.ErrorResponse(w, http.StatusNotFound, meta,
-			response.NewError(constant.ErrCodeNotFound, "not found"),
-		)
-	})
+	mux.HandleFunc("/", notFound)
 
-	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
-	mux.Handle("GET /docs/", http.StripPrefix("/docs/", http.FileServer(http.Dir("./docs"))))
+	mux.Handle("GET /uploads/", http.StripPrefix("/uploads/", fileServer(uploadDir)))
+	mux.Handle("GET /docs/", http.StripPrefix("/docs/", fileServer("./docs")))
 
 	mux.Handle("POST /api/v1/auth/register", middleware.Chain(http.HandlerFunc(handlers.Auth.Register), loginRate, publicRate))
 	mux.Handle("POST /api/v1/auth/login", middleware.Chain(http.HandlerFunc(handlers.Auth.Login), loginRate, publicRate))
@@ -104,4 +100,24 @@ func NewRouter(
 		middleware.Recovery,
 		middleware.MethodNotAllowed,
 	)
+}
+
+func notFound(w http.ResponseWriter, r *http.Request) {
+	meta := middleware.BuildMeta(r)
+	response.ErrorResponse(w, http.StatusNotFound, meta,
+		response.NewError(constant.ErrCodeNotFound, "not found"),
+	)
+}
+
+// fileServer serves the files in dir without directory listings, so the names of
+// all uploaded files, including ones no longer referenced, cannot be enumerated.
+func fileServer(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "" || strings.HasSuffix(r.URL.Path, "/") {
+			notFound(w, r)
+			return
+		}
+		files.ServeHTTP(w, r)
+	})
 }
