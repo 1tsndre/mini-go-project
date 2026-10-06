@@ -195,6 +195,83 @@ func TestAuthService_Login(t *testing.T) {
 	}
 }
 
+func TestAuthService_RefreshToken(t *testing.T) {
+	jwtManager := newTestJWTManager()
+	userID := uuid.New()
+
+	pair, err := jwtManager.GenerateTokenPair(userID.String(), "test@example.com", "buyer")
+	assert.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		token       string
+		mockSetup   func(repo *mocks.MockUserRepository)
+		wantErr     bool
+		errContains string
+		wantRole    string
+	}{
+		{
+			name:  "success - role reloaded from database",
+			token: pair.RefreshToken,
+			mockSetup: func(repo *mocks.MockUserRepository) {
+				repo.EXPECT().FindByID(gomock.Any(), userID).Return(&model.User{
+					ID:    userID,
+					Email: "test@example.com",
+					Role:  "seller",
+				}, nil)
+			},
+			wantRole: "seller",
+		},
+		{
+			name:        "access token rejected",
+			token:       pair.AccessToken,
+			mockSetup:   func(_ *mocks.MockUserRepository) {},
+			wantErr:     true,
+			errContains: "invalid refresh token",
+		},
+		{
+			name:        "malformed token",
+			token:       "not-a-token",
+			mockSetup:   func(_ *mocks.MockUserRepository) {},
+			wantErr:     true,
+			errContains: "invalid refresh token",
+		},
+		{
+			name:  "user no longer exists",
+			token: pair.RefreshToken,
+			mockSetup: func(repo *mocks.MockUserRepository) {
+				repo.EXPECT().FindByID(gomock.Any(), userID).Return(nil, errors.New("not found"))
+			},
+			wantErr:     true,
+			errContains: "invalid refresh token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			repo := mocks.NewMockUserRepository(ctrl)
+			tt.mockSetup(repo)
+
+			svc := NewAuthService(repo, jwtManager)
+			tokenPair, err := svc.RefreshToken(context.Background(), model.RefreshRequest{RefreshToken: tt.token})
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				assert.Nil(t, tokenPair)
+				return
+			}
+			assert.NoError(t, err)
+			claims, err := jwtManager.ValidateToken(tokenPair.AccessToken)
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantRole, claims.Role)
+		})
+	}
+}
+
 func TestAuthService_EmailIsCaseInsensitive(t *testing.T) {
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.MinCost)
 

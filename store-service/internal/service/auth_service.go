@@ -10,6 +10,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -112,7 +113,19 @@ func (s *authService) RefreshToken(ctx context.Context, req model.RefreshRequest
 		return nil, errors.New("invalid refresh token")
 	}
 
-	tokenPair, err := s.jwtManager.GenerateTokenPair(claims.UserID, claims.Email, claims.Role)
+	userID, err := uuid.Parse(claims.UserID)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	// Reload the user so the new tokens carry the current role (e.g. buyer -> seller
+	// after creating a store) instead of the one baked into the old refresh token.
+	user, err := s.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	tokenPair, err := s.jwtManager.GenerateTokenPair(user.ID.String(), user.Email, user.Role)
 	if err != nil {
 		logger.Error(ctx, "failed to generate token pair", err)
 		return nil, errors.New("internal server error")
