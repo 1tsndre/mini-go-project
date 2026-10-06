@@ -15,7 +15,7 @@ An E-Commerce REST API built with Go, following Clean Architecture principles. F
 | **JWT** | Authentication with access/refresh token pair |
 | **Viper** | Configuration management |
 | **zerolog** | Structured logging with request tracing |
-| **redsync** | Redis-based distributed mutex for stock management |
+| **redsync** | Redis-based distributed mutex for concurrent cart updates |
 
 ## Architecture
 
@@ -51,9 +51,9 @@ Each layer communicates via interfaces, making the codebase testable and loosely
 
 - **Auth** — JWT access/refresh tokens, role-based access control (Admin, Buyer, Seller)
 - **Products** — Full CRUD, full-text search, filter by category/price, image upload
-- **Cart** — Redis-first with PostgreSQL fallback, persists across sessions
-- **Orders** — Checkout with distributed lock for stock consistency, split into one order per store (a single checkout may create multiple orders), status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing`
-- **Payment Pipeline** — Async via NSQ: order created → payment processed (mock) → status updated
+- **Cart** — Redis-first with PostgreSQL fallback, persists across sessions, always shows current product prices (the price checkout charges)
+- **Orders** — Checkout reserves stock atomically in a single database transaction (conditional decrement, so stock can never go negative), split into one order per store (a single checkout may create multiple orders), status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing` (stock is returned in the same transaction)
+- **Payment Pipeline** — Async via NSQ: order created → payment processed (mock) → status updated. Orders still pending after 2 minutes are republished, and the payment service answers duplicate deliveries for an order with its recorded result
 - **Reviews** — One review per purchased product, rating 1–5 with optional comment
 - **Rate Limiting** — Sliding window using Redis Sorted Sets
 - **Observability** — Structured logging (zerolog) with request ID propagation, graceful shutdown
@@ -76,9 +76,10 @@ mini-go-project/
 │       │   └── databases/         # Database interface + PostgreSQL implementation
 │       ├── service/               # Business logic layer
 │       ├── handler/               # HTTP handlers
-│       ├── middleware/            # request_id, logging, recovery, auth, rate_limiter, timeout, json_errors
+│       ├── middleware/            # request_id, logging, body_limit, recovery, auth, rate_limiter, timeout, json_errors
 │       ├── router/                # Route registration
 │       ├── nsq/                   # NSQ consumer (payment results)
+│       ├── worker/                # Background jobs (republish stale pending orders)
 │       └── mocks/                 # Generated mocks for testing
 │
 ├── payment-service/               # gRPC + NSQ payment processor
@@ -102,7 +103,7 @@ mini-go-project/
 
 ### Prerequisites
 
-- Go 1.22+
+- Go 1.25.6+ (the version in `go.mod`)
 - PostgreSQL 16+
 - Redis 7+
 - NSQ
@@ -193,7 +194,7 @@ docker-compose down                    # stop everything
 |--------|----------|-------------|------|
 | POST | `/api/v1/auth/register` | Register new user | - |
 | POST | `/api/v1/auth/login` | Login | - |
-| POST | `/api/v1/auth/refresh` | Refresh token | Bearer |
+| POST | `/api/v1/auth/refresh` | Refresh token (refresh token in request body) | - |
 
 ### Store
 | Method | Endpoint | Description | Auth |
@@ -271,6 +272,8 @@ docker-compose down                    # stop everything
 }
 ```
 
+Error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `INVALID_STATUS`, `INSUFFICIENT_STOCK`, `RATE_LIMITED`, `REQUEST_TIMEOUT`, `INTERNAL_ERROR`. The status codes each endpoint returns are listed in `docs/swagger.json`.
+
 </details>
 
 ## Environment Variables
@@ -282,7 +285,11 @@ docker-compose down                    # stop everything
 |----------|---------|-------------|
 | `APP_PORT` | 8080 | Application port |
 | `APP_ENV` | development | Environment |
-| `APP_REQUEST_TIMEOUT` | 30s | Per-request timeout |
+| `APP_REQUEST_TIMEOUT` | 30s | Per-request timeout (responds 504 when exceeded) |
+| `APP_READ_TIMEOUT` | 15s | Max time to read a request, including the body |
+| `APP_WRITE_TIMEOUT` | 35s | Max time to write a response; must be greater than `APP_REQUEST_TIMEOUT` |
+| `APP_IDLE_TIMEOUT` | 60s | Keep-alive idle timeout |
+| `APP_SHUTDOWN_TIMEOUT` | 30s | Grace period for in-flight requests on shutdown |
 | `DB_HOST` | localhost | PostgreSQL host |
 | `DB_PORT` | 5432 | PostgreSQL port |
 | `DB_USER` | postgres | PostgreSQL user |
@@ -292,6 +299,7 @@ docker-compose down                    # stop everything
 | `REDIS_HOST` | localhost | Redis host |
 | `REDIS_PORT` | 6379 | Redis port |
 | `REDIS_PASSWORD` | - | Redis password |
+| `REDIS_DB` | 0 | Redis database number |
 | `NSQ_LOOKUPD_ADDR` | localhost:4161 | NSQ Lookupd address |
 | `NSQD_ADDR` | localhost:4150 | NSQd address |
 | `JWT_SECRET` | - | JWT signing secret |

@@ -4,6 +4,7 @@
     "ApiError": {
       "properties": {
         "code": {
+          "description": "One of VALIDATION_ERROR, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, INVALID_STATUS, INSUFFICIENT_STOCK, RATE_LIMITED, REQUEST_TIMEOUT, INTERNAL_ERROR",
           "type": "string"
         },
         "field": {
@@ -132,6 +133,7 @@
     "CreateCategoryRequest": {
       "properties": {
         "name": {
+          "maxLength": 255,
           "type": "string"
         }
       },
@@ -146,12 +148,16 @@
           "type": "string"
         },
         "name": {
+          "maxLength": 255,
           "type": "string"
         },
         "price": {
+          "description": "Greater than 0, below 10000000000000, at most 2 decimal places",
           "type": "string"
         },
         "stock": {
+          "maximum": 2147483647,
+          "minimum": 0,
           "type": "integer"
         }
       },
@@ -174,6 +180,7 @@
           "type": "string"
         },
         "name": {
+          "maxLength": 255,
           "type": "string"
         }
       },
@@ -182,6 +189,7 @@
     "LoginRequest": {
       "properties": {
         "email": {
+          "description": "Case-insensitive",
           "type": "string"
         },
         "password": {
@@ -243,6 +251,7 @@
           "type": "string"
         },
         "status": {
+          "description": "pending, paid, processing, shipping, shipped, completed or cancelled. A failed payment or a buyer cancellation (allowed up to processing) sets cancelled",
           "type": "string"
         },
         "store_id": {
@@ -281,6 +290,7 @@
           "type": "string"
         },
         "status": {
+          "description": "pending, success, failed or cancelled (the buyer cancelled the order before the payment completed)",
           "type": "string"
         }
       },
@@ -332,15 +342,18 @@
     "RegisterRequest": {
       "properties": {
         "email": {
-          "description": "Must be a valid email address",
+          "description": "Must be a valid email address. Case-insensitive; stored in lower case",
           "format": "email",
+          "maxLength": 255,
           "type": "string"
         },
         "name": {
+          "maxLength": 255,
           "type": "string"
         },
         "password": {
-          "description": "Minimum 6 characters",
+          "description": "6 to 72 bytes (the bcrypt limit)",
+          "maxLength": 72,
           "minLength": 6,
           "type": "string"
         }
@@ -410,6 +423,7 @@
     "UpdateCategoryRequest": {
       "properties": {
         "name": {
+          "maxLength": 255,
           "type": "string"
         }
       },
@@ -432,12 +446,16 @@
           "type": "string"
         },
         "name": {
+          "maxLength": 255,
           "type": "string"
         },
         "price": {
+          "description": "Greater than 0, below 10000000000000, at most 2 decimal places",
           "type": "string"
         },
         "stock": {
+          "maximum": 2147483647,
+          "minimum": 0,
           "type": "integer"
         }
       },
@@ -449,6 +467,7 @@
           "type": "string"
         },
         "name": {
+          "maxLength": 255,
           "type": "string"
         }
       },
@@ -504,7 +523,7 @@
       "name": "Andre",
       "url": "https://github.com/1tsndre"
     },
-    "description": "E-Commerce REST API built with Go, gRPC, NSQ, PostgreSQL, and Redis",
+    "description": "E-Commerce REST API built with Go, gRPC, NSQ, PostgreSQL, and Redis\n\nEvery error uses the `ApiResponse` envelope with an `errors` array. Besides the responses listed for each endpoint:\n- endpoints that need a token return 401 `UNAUTHORIZED` when it is missing or invalid, and 403 `FORBIDDEN` when the user's role is not allowed;\n- rate-limited endpoints return 429 `RATE_LIMITED`;\n- any request can return 500 `INTERNAL_ERROR`, or 504 `REQUEST_TIMEOUT` when it takes longer than `APP_REQUEST_TIMEOUT`.",
     "title": "Mini Go E-Commerce API",
     "version": "1.0"
   },
@@ -805,11 +824,6 @@
             }
           }
         },
-        "security": [
-          {
-            "BearerAuth": []
-          }
-        ],
         "summary": "Refresh token",
         "tags": [
           "Auth"
@@ -1128,7 +1142,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 validation error or INSUFFICIENT_STOCK",
             "schema": {
               "allOf": [
                 {
@@ -1426,7 +1440,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 validation error or INSUFFICIENT_STOCK",
             "schema": {
               "allOf": [
                 {
@@ -1716,6 +1730,48 @@
               "$ref": "#/definitions/ApiResponse"
             }
           },
+          "400": {
+            "description": "Bad Request \u2014 invalid category ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict \u2014 category is still used by products",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -1841,6 +1897,48 @@
                   "properties": {
                     "data": {
                       "$ref": "#/definitions/Category"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid id or name longer than 255 characters",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict \u2014 category name already exists",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
                     }
                   },
                   "type": "object"
@@ -2069,7 +2167,7 @@
             }
           },
           "400": {
-            "description": "Bad Request",
+            "description": "Bad Request \u2014 validation error, empty cart, or INSUFFICIENT_STOCK",
             "schema": {
               "allOf": [
                 {
@@ -2212,6 +2310,48 @@
               ]
             }
           },
+          "400": {
+            "description": "Bad Request \u2014 invalid order ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 order belongs to another user",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "404": {
             "description": "Not Found",
             "schema": {
@@ -2303,7 +2443,7 @@
             }
           },
           "400": {
-            "description": "Bad Request \u2014 order status not cancellable",
+            "description": "Bad Request \u2014 invalid order ID, or INVALID_STATUS when the order can no longer be cancelled",
             "schema": {
               "allOf": [
                 {
@@ -2489,7 +2629,7 @@
             }
           },
           "400": {
-            "description": "Bad Request \u2014 invalid or non-allowed status transition",
+            "description": "Bad Request \u2014 validation error, or INVALID_STATUS when the transition is not allowed",
             "schema": {
               "allOf": [
                 {
@@ -2665,16 +2805,18 @@
             "type": "string"
           },
           {
-            "description": "Filter by category UUID",
+            "description": "Filter by category UUID (must be a valid UUID)",
             "in": "query",
             "name": "category_id",
-            "type": "string"
+            "type": "string",
+            "format": "uuid"
           },
           {
-            "description": "Filter by store UUID",
+            "description": "Filter by store UUID (must be a valid UUID)",
             "in": "query",
             "name": "store_id",
-            "type": "string"
+            "type": "string",
+            "format": "uuid"
           },
           {
             "description": "Minimum price",
@@ -2726,6 +2868,27 @@
                     "data": {
                       "items": {
                         "$ref": "#/definitions/Product"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 category_id or store_id is not a valid UUID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
                       },
                       "type": "array"
                     }
@@ -2967,6 +3130,27 @@
               ]
             }
           },
+          "409": {
+            "description": "Conflict \u2014 product is referenced by orders or carts",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -3130,6 +3314,27 @@
               ]
             }
           },
+          "400": {
+            "description": "Bad Request \u2014 invalid product ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "404": {
             "description": "Not Found",
             "schema": {
@@ -3238,7 +3443,7 @@
             }
           },
           "400": {
-            "description": "Bad Request \u2014 invalid price or category_id format",
+            "description": "Bad Request \u2014 invalid name, price, stock or category_id",
             "schema": {
               "allOf": [
                 {
@@ -3425,6 +3630,27 @@
                   "properties": {
                     "data": {
                       "$ref": "#/definitions/Product"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "413": {
+            "description": "Payload Too Large \u2014 upload exceeds UPLOAD_MAX_SIZE",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
                     }
                   },
                   "type": "object"
@@ -3625,6 +3851,27 @@
                     "data": {
                       "items": {
                         "$ref": "#/definitions/Review"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request \u2014 invalid product ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
                       },
                       "type": "array"
                     }
@@ -3886,6 +4133,27 @@
                     "data": {
                       "items": {
                         "$ref": "#/definitions/Order"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 seller has no store",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
                       },
                       "type": "array"
                     }
@@ -4467,6 +4735,27 @@
               ]
             }
           },
+          "413": {
+            "description": "Payload Too Large \u2014 upload exceeds UPLOAD_MAX_SIZE",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "429": {
             "description": "Too Many Requests",
             "headers": {
@@ -4653,8 +4942,106 @@
               ]
             }
           },
+          "400": {
+            "description": "Bad Request \u2014 invalid order ID",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "403": {
+            "description": "Forbidden \u2014 order belongs to another user",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
           "404": {
             "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Request limit per minute",
+                "type": "integer"
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current window",
+                "type": "integer"
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix timestamp when the rate limit resets",
+                "type": "integer"
+              }
+            },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "503": {
+            "description": "Service Unavailable \u2014 payment-service could not be reached",
             "schema": {
               "allOf": [
                 {
