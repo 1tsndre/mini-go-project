@@ -53,7 +53,33 @@ func (s *cartService) GetCart(ctx context.Context, userID uuid.UUID) (*model.Car
 	if err != nil {
 		return nil, errors.New("failed to fetch cart")
 	}
+	s.refreshItems(ctx, cart)
 	return s.toCartResponse(cart), nil
+}
+
+// refreshItems sets each item's name, price and image to the product's current
+// values. The stored values are a snapshot from when the item was added, while
+// checkout charges the current price, so showing the snapshot could show a total
+// the buyer will not actually pay. Products the caller already loaded are reused;
+// if a product cannot be loaded, its stored values are kept.
+func (s *cartService) refreshItems(ctx context.Context, cart *model.Cart, loaded ...*model.Product) {
+	known := make(map[uuid.UUID]*model.Product, len(loaded))
+	for _, p := range loaded {
+		known[p.ID] = p
+	}
+	for i := range cart.Items {
+		item := &cart.Items[i]
+		product, ok := known[item.ProductID]
+		if !ok {
+			var err error
+			if product, err = s.productRepo.FindByID(ctx, item.ProductID); err != nil {
+				continue
+			}
+		}
+		item.Name = product.Name
+		item.Price = product.Price
+		item.ImageURL = product.ImageURL
+	}
 }
 
 func (s *cartService) AddItem(ctx context.Context, userID uuid.UUID, req model.AddCartItemRequest) (*model.CartResponse, error) {
@@ -81,17 +107,19 @@ func (s *cartService) AddItem(ctx context.Context, userID uuid.UUID, req model.A
 	}
 	defer unlock()
 
+	// GetCart returns an empty cart when the user has none, so an error here is a
+	// real failure. Saving over it would replace the whole cart with this one item.
 	cart, err := s.cartRepo.GetCart(ctx, userID)
 	if err != nil {
-		cart = &model.Cart{
-			UserID: userID,
-			Items:  []model.CartItem{},
-		}
+		return nil, errors.New("failed to load cart")
 	}
 
 	found := false
 	for i, item := range cart.Items {
 		if item.ProductID == productID {
+			if product.Stock < item.Quantity+req.Quantity {
+				return nil, ErrInsufficientStock
+			}
 			cart.Items[i].Quantity += req.Quantity
 			found = true
 			break
@@ -108,6 +136,7 @@ func (s *cartService) AddItem(ctx context.Context, userID uuid.UUID, req model.A
 		})
 	}
 
+	s.refreshItems(ctx, cart, product)
 	cart.UpdatedAt = time.Now()
 	if err := s.cartRepo.SaveCart(ctx, cart); err != nil {
 		return nil, errors.New("failed to save cart")
@@ -132,19 +161,28 @@ func (s *cartService) UpdateItem(ctx context.Context, userID uuid.UUID, productI
 		return nil, errors.New("failed to load cart")
 	}
 
-	found := false
+	idx := -1
 	for i, item := range cart.Items {
 		if item.ProductID == productID {
-			cart.Items[i].Quantity = req.Quantity
-			found = true
+			idx = i
 			break
 		}
 	}
 
-	if !found {
+	if idx == -1 {
 		return nil, errors.New("item not found in cart")
 	}
 
+	product, err := s.productRepo.FindByID(ctx, productID)
+	if err != nil {
+		return nil, errors.New("product not found")
+	}
+	if product.Stock < req.Quantity {
+		return nil, ErrInsufficientStock
+	}
+	cart.Items[idx].Quantity = req.Quantity
+
+	s.refreshItems(ctx, cart, product)
 	cart.UpdatedAt = time.Now()
 	if err := s.cartRepo.SaveCart(ctx, cart); err != nil {
 		return nil, errors.New("failed to save cart")
@@ -178,6 +216,7 @@ func (s *cartService) RemoveItem(ctx context.Context, userID uuid.UUID, productI
 		return nil, errors.New("item not found in cart")
 	}
 
+	s.refreshItems(ctx, cart)
 	cart.UpdatedAt = time.Now()
 	if err := s.cartRepo.SaveCart(ctx, cart); err != nil {
 		return nil, errors.New("failed to save cart")

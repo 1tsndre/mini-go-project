@@ -24,8 +24,10 @@ func TestCartService_GetCart(t *testing.T) {
 		checkResp func(t *testing.T, resp *model.CartResponse)
 	}{
 		{
-			name: "success",
-			mockSetup: func(cartRepo *mocks.MockCartRepository, _ *mocks.MockProductRepository) {
+			// The stored item is a snapshot from when it was added; checkout charges the
+			// current price, so the cart must show the current price too.
+			name: "success - shows current product price, not the stored snapshot",
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
 				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
 					UserID: userID,
 					Items: []model.CartItem{
@@ -37,9 +39,32 @@ func TestCartService_GetCart(t *testing.T) {
 						},
 					},
 				}, nil)
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{
+					ID:    productID,
+					Name:  "Test Product v2",
+					Price: decimal.NewFromFloat(12500),
+				}, nil)
 			},
 			checkResp: func(t *testing.T, resp *model.CartResponse) {
 				assert.Len(t, resp.Items, 1)
+				assert.Equal(t, "Test Product v2", resp.Items[0].Name)
+				assert.True(t, decimal.NewFromFloat(12500).Equal(resp.Items[0].Price))
+				assert.True(t, decimal.NewFromFloat(25000).Equal(resp.Total))
+			},
+		},
+		{
+			name: "product cannot be loaded - stored values are kept",
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
+					UserID: userID,
+					Items: []model.CartItem{
+						{ProductID: productID, Name: "Test Product", Price: decimal.NewFromFloat(10000), Quantity: 2},
+					},
+				}, nil)
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(nil, errors.New("db error"))
+			},
+			checkResp: func(t *testing.T, resp *model.CartResponse) {
+				assert.Equal(t, "Test Product", resp.Items[0].Name)
 				assert.True(t, decimal.NewFromFloat(20000).Equal(resp.Total))
 			},
 		},
@@ -99,9 +124,23 @@ func TestCartService_AddItem(t *testing.T) {
 					Price: decimal.NewFromFloat(10000),
 					Stock: 10,
 				}, nil)
-				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(nil, errors.New("not found"))
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{UserID: userID, Items: []model.CartItem{}}, nil)
 				cartRepo.EXPECT().SaveCart(gomock.Any(), gomock.Any()).Return(nil)
 			},
+		},
+		{
+			// Saving after a failed load would overwrite the user's whole cart.
+			name: "load cart fails - cart is not overwritten",
+			req:  model.AddCartItemRequest{ProductID: productID.String(), Quantity: 1},
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{
+					ID:    productID,
+					Stock: 10,
+				}, nil)
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(nil, errors.New("connection reset"))
+			},
+			wantErr:     true,
+			errContains: "failed to load cart",
 		},
 		{
 			name: "success - existing item incremented",
@@ -121,6 +160,22 @@ func TestCartService_AddItem(t *testing.T) {
 				}, nil)
 				cartRepo.EXPECT().SaveCart(gomock.Any(), gomock.Any()).Return(nil)
 			},
+		},
+		{
+			name: "insufficient stock - existing quantity plus new exceeds stock",
+			req:  model.AddCartItemRequest{ProductID: productID.String(), Quantity: 2},
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{
+					ID:    productID,
+					Stock: 3,
+				}, nil)
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
+					UserID: userID,
+					Items:  []model.CartItem{{ProductID: productID, Quantity: 2}},
+				}, nil)
+			},
+			wantErr:     true,
+			errContains: "insufficient stock",
 		},
 		{
 			name:        "invalid product_id",
@@ -165,7 +220,7 @@ func TestCartService_AddItem(t *testing.T) {
 					ID:    productID,
 					Stock: 10,
 				}, nil)
-				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(nil, errors.New("not found"))
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{UserID: userID, Items: []model.CartItem{}}, nil)
 				cartRepo.EXPECT().SaveCart(gomock.Any(), gomock.Any()).Return(errors.New("redis error"))
 			},
 			wantErr:     true,
@@ -216,13 +271,28 @@ func TestCartService_UpdateItem(t *testing.T) {
 			name:      "success",
 			productID: productID,
 			req:       model.UpdateCartItemRequest{Quantity: 3},
-			mockSetup: func(cartRepo *mocks.MockCartRepository, _ *mocks.MockProductRepository) {
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
 				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
 					UserID: userID,
 					Items:  []model.CartItem{{ProductID: productID, Quantity: 1}},
 				}, nil)
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, Stock: 10}, nil)
 				cartRepo.EXPECT().SaveCart(gomock.Any(), gomock.Any()).Return(nil)
 			},
+		},
+		{
+			name:      "insufficient stock",
+			productID: productID,
+			req:       model.UpdateCartItemRequest{Quantity: 5},
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
+				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
+					UserID: userID,
+					Items:  []model.CartItem{{ProductID: productID, Quantity: 1}},
+				}, nil)
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, Stock: 3}, nil)
+			},
+			wantErr:     true,
+			errContains: "insufficient stock",
 		},
 		{
 			name:        "quantity zero",
@@ -259,11 +329,12 @@ func TestCartService_UpdateItem(t *testing.T) {
 			name:      "save fails",
 			productID: productID,
 			req:       model.UpdateCartItemRequest{Quantity: 2},
-			mockSetup: func(cartRepo *mocks.MockCartRepository, _ *mocks.MockProductRepository) {
+			mockSetup: func(cartRepo *mocks.MockCartRepository, productRepo *mocks.MockProductRepository) {
 				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(&model.Cart{
 					UserID: userID,
 					Items:  []model.CartItem{{ProductID: productID, Quantity: 1}},
 				}, nil)
+				productRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, Stock: 10}, nil)
 				cartRepo.EXPECT().SaveCart(gomock.Any(), gomock.Any()).Return(errors.New("redis error"))
 			},
 			wantErr:     true,
