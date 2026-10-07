@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/1tsndre/mini-go-project/pkg/constant"
@@ -59,7 +60,8 @@ func (queryLogger) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.Tr
 func (queryLogger) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryEndData) {
 	start, _ := ctx.Value(queryStartKey{}).(queryStart)
 	fields := map[string]interface{}{
-		"sql":      start.sql,
+		// The queries are written across several lines; log each one on a single line.
+		"sql":      strings.Join(strings.Fields(start.sql), " "),
 		"duration": time.Since(start.at).String(),
 		"rows":     data.CommandTag.RowsAffected(),
 	}
