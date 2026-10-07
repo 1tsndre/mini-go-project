@@ -11,7 +11,7 @@ An E-Commerce REST API built with Go, following Clean Architecture principles. F
 | **Redis** | Cart storage, product caching, distributed locking, rate limiting |
 | **NSQ** | Asynchronous order-to-payment pipeline |
 | **gRPC** | Synchronous payment-status query (store-service → payment-service) |
-| **GORM** | ORM and database abstraction |
+| **sqlx** + **pgx** | Hand-written SQL with struct scanning, on the pgx PostgreSQL driver |
 | **JWT** | Authentication with access/refresh token pair |
 | **Viper** | Configuration management |
 | **zerolog** | Structured logging with request tracing |
@@ -56,7 +56,7 @@ Each layer communicates via interfaces, making the codebase testable and loosely
 - **Payment Pipeline** — Async via NSQ: order created → payment processed (mock) → status updated. Orders still pending after 2 minutes are republished, and the payment service answers duplicate deliveries for an order with its recorded result
 - **Reviews** — One review per purchased product, rating 1–5 with optional comment
 - **Rate Limiting** — Sliding window using Redis Sorted Sets
-- **Observability** — Structured logging (zerolog) with request ID propagation, graceful shutdown
+- **Observability** — Structured logging (zerolog) with request ID propagation, SQL query logging in development, graceful shutdown
 
 ## Project Structure
 
@@ -71,7 +71,7 @@ mini-go-project/
 │       ├── config/                # Viper-based configuration
 │       ├── constant/              # Redis keys, roles, statuses, error codes, NSQ topics, rate limit key types
 │       ├── model/                 # Entities and DTOs
-│       ├── repository/            # Data access layer
+│       ├── repository/            # Data access layer (hand-written SQL via sqlx)
 │       │   ├── caches/            # Cache interface + Redis implementation
 │       │   └── databases/         # Database interface + PostgreSQL implementation
 │       ├── service/               # Business logic layer
@@ -320,6 +320,13 @@ Error codes: `VALIDATION_ERROR`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONF
 ```bash
 go test ./... -v
 go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
+```
+
+The repository tests also run every query against a real PostgreSQL when `TEST_DATABASE_URL` is set (they are skipped otherwise). They migrate a temporary schema and drop it afterwards, so the database's own data is left untouched — for example, with the Docker Compose database:
+
+```bash
+TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/mini_go_ecommerce?sslmode=disable" \
+  go test ./store-service/internal/repository/ -v
 ```
 
 ## License
