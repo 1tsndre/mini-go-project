@@ -11,7 +11,9 @@ An E-Commerce REST API built with Go, following Clean Architecture principles. F
 | **Redis** | Cart storage, product caching, distributed locking, rate limiting |
 | **NSQ** | Asynchronous order-to-payment pipeline |
 | **gRPC** | Synchronous payment-status query (store-service → payment-service) |
-| **sqlx** + **pgx** | Hand-written SQL with struct scanning, on the pgx PostgreSQL driver |
+| **sqlx** | Plain SQL queries scanned into structs (no ORM) |
+| **pgx** | PostgreSQL driver |
+| **golang-migrate** | Versioned SQL schema migrations |
 | **JWT** | Authentication with access/refresh token pair |
 | **Viper** | Configuration management |
 | **zerolog** | Structured logging with request tracing |
@@ -47,6 +49,8 @@ An E-Commerce REST API built with Go, following Clean Architecture principles. F
 
 Each layer communicates via interfaces, making the codebase testable and loosely coupled. Dependencies are injected manually in `main.go`.
 
+Repositories run plain SQL through sqlx; there is no ORM. The schema is defined only by the SQL files in `migrations/`, applied with golang-migrate, so the service never creates or alters tables itself. Missing rows and constraint violations are translated into `repository.ErrNotFound`, `ErrDuplicateKey` and `ErrForeignKeyViolation`, so services never depend on the database driver.
+
 ## Features
 
 - **Auth** — JWT access/refresh tokens, role-based access control (Admin, Buyer, Seller)
@@ -71,9 +75,9 @@ mini-go-project/
 │       ├── config/                # Viper-based configuration
 │       ├── constant/              # Redis keys, roles, statuses, error codes, NSQ topics, rate limit key types
 │       ├── model/                 # Entities and DTOs
-│       ├── repository/            # Data access layer (hand-written SQL via sqlx)
+│       ├── repository/            # Data access layer (plain SQL via sqlx)
 │       │   ├── caches/            # Cache interface + Redis implementation
-│       │   └── databases/         # Database interface + PostgreSQL implementation
+│       │   └── databases/         # Database interface + PostgreSQL connection (pgx)
 │       ├── service/               # Business logic layer
 │       ├── handler/               # HTTP handlers
 │       ├── middleware/            # request_id, logging, body_limit, recovery, auth, rate_limiter, timeout, json_errors
@@ -92,7 +96,7 @@ mini-go-project/
 │
 ├── proto/payment/                 # gRPC protobuf definitions
 ├── pkg/                           # Shared packages (logger, jwt, response, upload)
-├── migrations/                    # SQL migration files
+├── migrations/                    # SQL schema migrations (golang-migrate)
 ├── docs/                          # Static OpenAPI spec
 └── .env.example
 ```
@@ -132,6 +136,8 @@ nsqd --lookupd-tcp-address=localhost:4160
 ```
 
 **3. Run database migrations**
+
+The service does not create tables itself, so run this on a new database and again whenever `migrations/` gets new files:
 
 ```bash
 migrate -path migrations \
@@ -322,7 +328,7 @@ go test ./... -v
 go test ./... -coverprofile=coverage.out && go tool cover -html=coverage.out
 ```
 
-The repository tests also run every query against a real PostgreSQL when `TEST_DATABASE_URL` is set (they are skipped otherwise). They migrate a temporary schema and drop it afterwards, so the database's own data is left untouched — for example, with the Docker Compose database:
+Without a database, the repository tests still check the selected columns and the models' `db` tags against `migrations/`. With `TEST_DATABASE_URL` set, they also run every query against a real PostgreSQL (those tests are skipped otherwise). They migrate a temporary schema and drop it afterwards, so the database's own data is left untouched — for example, with the Docker Compose database:
 
 ```bash
 TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/mini_go_ecommerce?sslmode=disable" \
