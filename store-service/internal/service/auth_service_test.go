@@ -8,11 +8,11 @@ import (
 	"github.com/1tsndre/mini-go-project/pkg/jwt"
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 	"time"
 )
 
@@ -80,7 +80,7 @@ func TestAuthService_Register(t *testing.T) {
 			},
 			mockSetup: func(repo *mocks.MockUserRepository) {
 				repo.EXPECT().FindByEmail(gomock.Any(), "test@example.com").Return(nil, errors.New("not found"))
-				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(gorm.ErrDuplicatedKey)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repository.ErrDuplicateKey)
 			},
 			wantErr:     true,
 			errContains: "email already registered",

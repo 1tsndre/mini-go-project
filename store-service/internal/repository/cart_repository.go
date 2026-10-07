@@ -10,8 +10,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/caches"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/databases"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
+	"github.com/jmoiron/sqlx"
 )
 
 type CartRepository interface {
@@ -40,38 +39,19 @@ func (r *cartRepository) GetCart(ctx context.Context, userID uuid.UUID) (*model.
 		}
 	}
 
-	type cartRow struct {
-		ProductID uuid.UUID       `gorm:"column:product_id"`
-		Quantity  int             `gorm:"column:quantity"`
-		Name      string          `gorm:"column:name"`
-		Price     decimal.Decimal `gorm:"column:price"`
-		ImageURL  string          `gorm:"column:image_url"`
-	}
-
-	var rows []cartRow
-	err = r.db.DB().WithContext(ctx).
-		Table("cart_items").
-		Select("cart_items.product_id, cart_items.quantity, products.name, products.price, products.image_url").
-		Joins("JOIN products ON products.id = cart_items.product_id").
-		Where("cart_items.user_id = ?", userID).
-		Scan(&rows).Error
-	if err != nil {
-		return nil, err
-	}
-
 	cart := &model.Cart{
 		UserID: userID,
-		Items:  make([]model.CartItem, 0, len(rows)),
+		Items:  []model.CartItem{},
 	}
-
-	for _, row := range rows {
-		cart.Items = append(cart.Items, model.CartItem{
-			ProductID: row.ProductID,
-			Name:      row.Name,
-			Price:     row.Price,
-			Quantity:  row.Quantity,
-			ImageURL:  row.ImageURL,
-		})
+	err = r.db.DB().SelectContext(ctx, &cart.Items, `
+		SELECT ci.product_id, ci.quantity, p.name, p.price, p.image_url
+		FROM cart_items ci
+		JOIN products p ON p.id = ci.product_id
+		WHERE ci.user_id = $1`,
+		userID,
+	)
+	if err != nil {
+		return nil, translateError(err)
 	}
 
 	r.cache.Set(ctx, cacheKey, cart, constant.TTLCart)
@@ -82,8 +62,8 @@ func (r *cartRepository) GetCart(ctx context.Context, userID uuid.UUID) (*model.
 func (r *cartRepository) SaveCart(ctx context.Context, cart *model.Cart) error {
 	cacheKey := fmt.Sprintf(constant.KeyCart, cart.UserID.String())
 
-	if err := r.db.DB().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("user_id = ?", cart.UserID).Delete(&model.CartItemDB{}).Error; err != nil {
+	err := withTx(ctx, r.db.DB(), func(tx *sqlx.Tx) error {
+		if _, err := tx.ExecContext(ctx, "DELETE FROM cart_items WHERE user_id = $1", cart.UserID); err != nil {
 			return err
 		}
 
@@ -100,9 +80,14 @@ func (r *cartRepository) SaveCart(ctx context.Context, cart *model.Cart) error {
 			})
 		}
 
-		return tx.Create(&dbItems).Error
-	}); err != nil {
+		_, err := tx.NamedExecContext(ctx,
+			"INSERT INTO cart_items (user_id, product_id, quantity) VALUES (:user_id, :product_id, :quantity)",
+			dbItems,
+		)
 		return err
+	})
+	if err != nil {
+		return translateError(err)
 	}
 
 	r.cache.Set(ctx, cacheKey, cart, constant.TTLCart)
@@ -112,8 +97,8 @@ func (r *cartRepository) SaveCart(ctx context.Context, cart *model.Cart) error {
 func (r *cartRepository) DeleteCart(ctx context.Context, userID uuid.UUID) error {
 	cacheKey := fmt.Sprintf(constant.KeyCart, userID.String())
 
-	if err := r.db.DB().WithContext(ctx).Where("user_id = ?", userID).Delete(&model.CartItemDB{}).Error; err != nil {
-		return err
+	if _, err := r.db.DB().ExecContext(ctx, "DELETE FROM cart_items WHERE user_id = $1", userID); err != nil {
+		return translateError(err)
 	}
 	r.cache.Delete(ctx, cacheKey)
 	return nil

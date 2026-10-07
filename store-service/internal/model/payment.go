@@ -8,14 +8,14 @@ import (
 )
 
 type Payment struct {
-	ID        uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	OrderID   uuid.UUID       `gorm:"type:uuid;uniqueIndex;not null" json:"order_id"`
-	Method    string          `gorm:"not null;default:mock" json:"method"`
-	Status    string          `gorm:"not null;default:pending" json:"status"`
-	Amount    decimal.Decimal `gorm:"type:decimal(15,2);not null" json:"amount"`
-	PaidAt    *time.Time      `json:"paid_at"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID        uuid.UUID       `db:"id" json:"id"`
+	OrderID   uuid.UUID       `db:"order_id" json:"order_id"`
+	Method    string          `db:"method" json:"method"`
+	Status    string          `db:"status" json:"status"`
+	Amount    decimal.Decimal `db:"amount" json:"amount"`
+	PaidAt    *time.Time      `db:"paid_at" json:"paid_at"`
+	CreatedAt time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 const (

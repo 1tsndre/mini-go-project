@@ -7,10 +7,10 @@ import (
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 )
 
 func TestReviewService_CreateReview(t *testing.T) {
@@ -100,7 +100,7 @@ func TestReviewService_CreateReview(t *testing.T) {
 			mockSetup: func(repo *mocks.MockReviewRepository) {
 				repo.EXPECT().HasUserPurchased(gomock.Any(), userID, productID).Return(true, nil)
 				repo.EXPECT().HasUserReviewed(gomock.Any(), userID, productID).Return(false, nil)
-				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(gorm.ErrDuplicatedKey)
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repository.ErrDuplicateKey)
 			},
 			wantErr:     true,
 			errContains: "you have already reviewed",
@@ -126,6 +126,72 @@ func TestReviewService_CreateReview(t *testing.T) {
 			assert.NoError(t, err)
 			assert.NotNil(t, resp)
 			assert.Equal(t, tt.req.Rating, resp.Rating)
+		})
+	}
+}
+
+func TestReviewService_GetProductReviews(t *testing.T) {
+	productID := uuid.New()
+
+	tests := []struct {
+		name        string
+		mockSetup   func(repo *mocks.MockReviewRepository)
+		wantErr     bool
+		errContains string
+		wantNames   []string
+		wantTotal   int64
+	}{
+		{
+			name: "success - includes the reviewer's name",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return([]model.Review{
+					{ID: uuid.New(), ProductID: productID, Rating: 5, UserName: "Andi"},
+					{ID: uuid.New(), ProductID: productID, Rating: 3, UserName: "Budi"},
+				}, int64(2), nil)
+			},
+			wantNames: []string{"Andi", "Budi"},
+			wantTotal: 2,
+		},
+		{
+			name: "no reviews - empty list",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return(nil, int64(0), nil)
+			},
+			wantNames: []string{},
+		},
+		{
+			name: "repository fails",
+			mockSetup: func(repo *mocks.MockReviewRepository) {
+				repo.EXPECT().FindByProductID(gomock.Any(), productID, 1, 10).Return(nil, int64(0), errors.New("db error"))
+			},
+			wantErr:     true,
+			errContains: "failed to fetch reviews",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			repo := mocks.NewMockReviewRepository(ctrl)
+			tt.mockSetup(repo)
+
+			resp, total, err := NewReviewService(repo).GetProductReviews(context.Background(), productID, 1, 10)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.errContains)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tt.wantTotal, total)
+			assert.NotNil(t, resp, "an empty page is an empty list, not null")
+			names := make([]string, 0, len(resp))
+			for _, r := range resp {
+				names = append(names, r.UserName)
+			}
+			assert.Equal(t, tt.wantNames, names)
 		})
 	}
 }

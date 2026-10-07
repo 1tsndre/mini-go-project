@@ -149,7 +149,7 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(ctx, cfg.App.ShutdownTimeout)
 	defer cancel()
 
-	// Drain HTTP first: in-flight requests (e.g. checkout) still need Redis, NSQ and gRPC.
+	// Drain HTTP first: in-flight requests (e.g. checkout) still need the database, Redis, NSQ and gRPC.
 	if err := server.Shutdown(shutdownCtx); err != nil {
 		logger.Error(ctx, "server forced to shutdown", err)
 	}
@@ -159,6 +159,7 @@ func main() {
 	nsqProducer.Stop()
 	paymentClient.Close()
 	redisClient.Close()
+	db.Close()
 
 	logger.Info(ctx, "server stopped")
 }

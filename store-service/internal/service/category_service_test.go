@@ -7,10 +7,10 @@ import (
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 )
 
 func TestCategoryService_CreateCategory(t *testing.T) {
@@ -30,13 +30,22 @@ func TestCategoryService_CreateCategory(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "create fails",
+			name: "duplicate name",
 			req:  model.CreateCategoryRequest{Name: "Electronics"},
 			mockSetup: func(repo *mocks.MockCategoryRepository) {
-				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("duplicate"))
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repository.ErrDuplicateKey)
 			},
 			wantErr:     true,
 			errContains: "category already exists",
+		},
+		{
+			name: "create fails",
+			req:  model.CreateCategoryRequest{Name: "Electronics"},
+			mockSetup: func(repo *mocks.MockCategoryRepository) {
+				repo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(errors.New("connection reset"))
+			},
+			wantErr:     true,
+			errContains: "failed to create category",
 		},
 	}
 
@@ -152,7 +161,7 @@ func TestCategoryService_DeleteCategory(t *testing.T) {
 			id:   catID,
 			mockSetup: func(repo *mocks.MockCategoryRepository) {
 				repo.EXPECT().FindByID(gomock.Any(), catID).Return(&model.Category{ID: catID, Name: "Electronics"}, nil)
-				repo.EXPECT().Delete(gomock.Any(), catID).Return(gorm.ErrForeignKeyViolated)
+				repo.EXPECT().Delete(gomock.Any(), catID).Return(repository.ErrForeignKeyViolation)
 			},
 			wantErr:     true,
 			errContains: "in use",

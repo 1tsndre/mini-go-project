@@ -14,28 +14,21 @@ type Cart struct {
 }
 
 type CartItem struct {
-	ProductID uuid.UUID       `json:"product_id"`
-	Name      string          `json:"name"`
-	Price     decimal.Decimal `json:"price"`
-	Quantity  int             `json:"quantity"`
-	ImageURL  string          `json:"image_url"`
+	ProductID uuid.UUID       `db:"product_id" json:"product_id"`
+	Name      string          `db:"name" json:"name"`
+	Price     decimal.Decimal `db:"price" json:"price"`
+	Quantity  int             `db:"quantity" json:"quantity"`
+	ImageURL  string          `db:"image_url" json:"image_url"`
 }
 
-// CartItemDB is the PostgreSQL backup model
+// CartItemDB is the PostgreSQL backup model (table cart_items)
 type CartItemDB struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index" json:"user_id"`
-	ProductID uuid.UUID `gorm:"type:uuid;not null" json:"product_id"`
-	Quantity  int       `gorm:"not null" json:"quantity"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-
-	User    User    `gorm:"foreignKey:UserID" json:"-"`
-	Product Product `gorm:"foreignKey:ProductID" json:"-"`
-}
-
-func (CartItemDB) TableName() string {
-	return "cart_items"
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProductID uuid.UUID `db:"product_id" json:"product_id"`
+	Quantity  int       `db:"quantity" json:"quantity"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type AddCartItemRequest struct {

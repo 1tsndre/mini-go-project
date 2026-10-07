@@ -9,7 +9,6 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type StoreService interface {
@@ -45,7 +44,7 @@ func (s *storeService) CreateStore(ctx context.Context, userID uuid.UUID, req mo
 
 	if err := s.storeRepo.Create(ctx, store); err != nil {
 		// A concurrent request created this user's store after the check above.
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
+		if errors.Is(err, repository.ErrDuplicateKey) {
 			return nil, errors.New("user already has a store")
 		}
 		logger.Error(ctx, "failed to create store", err)

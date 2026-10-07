@@ -8,19 +8,16 @@ import (
 )
 
 type Product struct {
-	ID          uuid.UUID       `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	StoreID     uuid.UUID       `gorm:"type:uuid;not null;index" json:"store_id"`
-	CategoryID  uuid.UUID       `gorm:"type:uuid;not null;index" json:"category_id"`
-	Name        string          `gorm:"not null" json:"name"`
-	Description string          `json:"description"`
-	Price       decimal.Decimal `gorm:"type:decimal(15,2);not null" json:"price"`
-	Stock       int             `gorm:"not null;default:0" json:"stock"`
-	ImageURL    string          `json:"image_url"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
-
-	Store    Store    `gorm:"foreignKey:StoreID" json:"-"`
-	Category Category `gorm:"foreignKey:CategoryID" json:"-"`
+	ID          uuid.UUID       `db:"id" json:"id"`
+	StoreID     uuid.UUID       `db:"store_id" json:"store_id"`
+	CategoryID  uuid.UUID       `db:"category_id" json:"category_id"`
+	Name        string          `db:"name" json:"name"`
+	Description string          `db:"description" json:"description"`
+	Price       decimal.Decimal `db:"price" json:"price"`
+	Stock       int             `db:"stock" json:"stock"`
+	ImageURL    string          `db:"image_url" json:"image_url"`
+	CreatedAt   time.Time       `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time       `db:"updated_at" json:"updated_at"`
 }
 
 type CreateProductRequest struct {

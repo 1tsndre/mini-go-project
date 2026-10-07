@@ -7,16 +7,13 @@ import (
 )
 
 type Store struct {
-	ID          uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID      uuid.UUID `gorm:"type:uuid;uniqueIndex;not null" json:"user_id"`
-	Name        string    `gorm:"not null" json:"name"`
-	Description string    `json:"description"`
-	LogoURL     string    `json:"logo_url"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-
-	User     User      `gorm:"foreignKey:UserID" json:"-"`
-	Products []Product `gorm:"foreignKey:StoreID" json:"-"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	UserID      uuid.UUID `db:"user_id" json:"user_id"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
+	LogoURL     string    `db:"logo_url" json:"logo_url"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 }
 
 type CreateStoreRequest struct {

@@ -7,16 +7,16 @@ import (
 )
 
 type Review struct {
-	ID        uuid.UUID `gorm:"type:uuid;primaryKey;default:gen_random_uuid()" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null" json:"user_id"`
-	ProductID uuid.UUID `gorm:"type:uuid;not null" json:"product_id"`
-	Rating    int       `gorm:"not null" json:"rating"`
-	Comment   string    `json:"comment"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProductID uuid.UUID `db:"product_id" json:"product_id"`
+	Rating    int       `db:"rating" json:"rating"`
+	Comment   string    `db:"comment" json:"comment"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
-	User    User    `gorm:"foreignKey:UserID" json:"-"`
-	Product Product `gorm:"foreignKey:ProductID" json:"-"`
+	// UserName is the reviewer's name, joined from users when reviews are listed.
+	UserName string `db:"user_name" json:"-"`
 }
 
 type CreateReviewRequest struct {
@@ -38,6 +38,7 @@ func (r *Review) ToResponse() ReviewResponse {
 	return ReviewResponse{
 		ID:        r.ID,
 		UserID:    r.UserID,
+		UserName:  r.UserName,
 		ProductID: r.ProductID,
 		Rating:    r.Rating,
 		Comment:   r.Comment,

@@ -8,10 +8,10 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 )
 
 func TestStoreService_CreateStore(t *testing.T) {
@@ -60,7 +60,7 @@ func TestStoreService_CreateStore(t *testing.T) {
 			req:  model.CreateStoreRequest{Name: "My Store"},
 			mockSetup: func(storeRepo *mocks.MockStoreRepository, _ *mocks.MockUserRepository) {
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, errors.New("not found"))
-				storeRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(gorm.ErrDuplicatedKey)
+				storeRepo.EXPECT().Create(gomock.Any(), gomock.Any()).Return(repository.ErrDuplicateKey)
 			},
 			wantErr:     true,
 			errContains: "user already has a store",

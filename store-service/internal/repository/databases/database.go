@@ -1,7 +1,8 @@
 package databases
 
-import "gorm.io/gorm"
+import "github.com/jmoiron/sqlx"
 
 type Database interface {
-	DB() *gorm.DB
+	DB() *sqlx.DB
+	Close() error
 }

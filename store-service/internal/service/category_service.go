@@ -3,13 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/1tsndre/mini-go-project/pkg/logger"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type CategoryService interface {
@@ -34,7 +32,7 @@ func (s *categoryService) CreateCategory(ctx context.Context, req model.CreateCa
 
 	if err := s.repo.Create(ctx, category); err != nil {
 		logger.Error(ctx, "failed to create category", err)
-		if errors.Is(err, gorm.ErrDuplicatedKey) || strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+		if errors.Is(err, repository.ErrDuplicateKey) {
 			return nil, errors.New("category already exists")
 		}
 		return nil, errors.New("failed to create category")
@@ -70,7 +68,7 @@ func (s *categoryService) UpdateCategory(ctx context.Context, id uuid.UUID, req 
 
 	if err := s.repo.Update(ctx, category); err != nil {
 		logger.Error(ctx, "failed to update category", err)
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
+		if errors.Is(err, repository.ErrDuplicateKey) {
 			return nil, errors.New("category already exists")
 		}
 		return nil, errors.New("failed to update category")
@@ -87,7 +85,7 @@ func (s *categoryService) DeleteCategory(ctx context.Context, id uuid.UUID) erro
 	}
 
 	if err := s.repo.Delete(ctx, id); err != nil {
-		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+		if errors.Is(err, repository.ErrForeignKeyViolation) {
 			return errors.New("category is in use by existing products")
 		}
 		logger.Error(ctx, "failed to delete category", err)

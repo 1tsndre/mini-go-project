@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const storeColumns = "id, user_id, name, description, logo_url, created_at, updated_at"
+
 type StoreRepository interface {
 	Create(ctx context.Context, store *model.Store) error
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Store, error)
@@ -25,31 +27,45 @@ func NewStoreRepository(db databases.Database) StoreRepository {
 }
 
 func (r *storeRepository) Create(ctx context.Context, store *model.Store) error {
-	return r.db.DB().WithContext(ctx).Create(store).Error
+	err := r.db.DB().QueryRowxContext(ctx, `
+		INSERT INTO stores (user_id, name, description, logo_url)
+		VALUES ($1, $2, $3, $4)
+		RETURNING `+storeColumns,
+		store.UserID, store.Name, store.Description, store.LogoURL,
+	).StructScan(store)
+	return translateError(err)
 }
 
 func (r *storeRepository) FindByID(ctx context.Context, id uuid.UUID) (*model.Store, error) {
 	var store model.Store
-	err := r.db.DB().WithContext(ctx).First(&store, "id = ?", id).Error
+	err := r.db.DB().GetContext(ctx, &store, "SELECT "+storeColumns+" FROM stores WHERE id = $1", id)
 	if err != nil {
-		return nil, err
+		return nil, translateError(err)
 	}
 	return &store, nil
 }
 
 func (r *storeRepository) FindByUserID(ctx context.Context, userID uuid.UUID) (*model.Store, error) {
 	var store model.Store
-	err := r.db.DB().WithContext(ctx).First(&store, "user_id = ?", userID).Error
+	err := r.db.DB().GetContext(ctx, &store, "SELECT "+storeColumns+" FROM stores WHERE user_id = $1", userID)
 	if err != nil {
-		return nil, err
+		return nil, translateError(err)
 	}
 	return &store, nil
 }
 
 func (r *storeRepository) Update(ctx context.Context, store *model.Store) error {
-	return r.db.DB().WithContext(ctx).Save(store).Error
+	err := r.db.DB().QueryRowxContext(ctx, `
+		UPDATE stores
+		SET name = $1, description = $2, logo_url = $3, updated_at = NOW()
+		WHERE id = $4
+		RETURNING `+storeColumns,
+		store.Name, store.Description, store.LogoURL, store.ID,
+	).StructScan(store)
+	return translateError(err)
 }
 
 func (r *storeRepository) Delete(ctx context.Context, id uuid.UUID) error {
-	return r.db.DB().WithContext(ctx).Delete(&model.Store{}, "id = ?", id).Error
+	_, err := r.db.DB().ExecContext(ctx, "DELETE FROM stores WHERE id = $1", id)
+	return translateError(err)
 }

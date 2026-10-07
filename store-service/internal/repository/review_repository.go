@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const reviewColumns = "id, user_id, product_id, rating, comment, created_at, updated_at"
+
 type ReviewRepository interface {
 	Create(ctx context.Context, review *model.Review) error
 	FindByProductID(ctx context.Context, productID uuid.UUID, page, perPage int) ([]model.Review, int64, error)
@@ -25,46 +27,57 @@ func NewReviewRepository(db databases.Database) ReviewRepository {
 }
 
 func (r *reviewRepository) Create(ctx context.Context, review *model.Review) error {
-	return r.db.DB().WithContext(ctx).Create(review).Error
+	err := r.db.DB().QueryRowxContext(ctx, `
+		INSERT INTO reviews (user_id, product_id, rating, comment)
+		VALUES ($1, $2, $3, $4)
+		RETURNING `+reviewColumns,
+		review.UserID, review.ProductID, review.Rating, review.Comment,
+	).StructScan(review)
+	return translateError(err)
 }
 
 func (r *reviewRepository) FindByProductID(ctx context.Context, productID uuid.UUID, page, perPage int) ([]model.Review, int64, error) {
-	var reviews []model.Review
 	var total int64
-
-	query := r.db.DB().WithContext(ctx).Model(&model.Review{}).Where("product_id = ?", productID)
-
-	if err := query.Count(&total).Error; err != nil {
-		return nil, 0, err
+	if err := r.db.DB().GetContext(ctx, &total, "SELECT COUNT(*) FROM reviews WHERE product_id = $1", productID); err != nil {
+		return nil, 0, translateError(err)
 	}
 
-	offset := (page - 1) * perPage
-	err := query.
-		Preload("User").
-		Order("created_at DESC").
-		Offset(offset).
-		Limit(perPage).
-		Find(&reviews).Error
-
-	return reviews, total, err
+	var reviews []model.Review
+	err := r.db.DB().SelectContext(ctx, &reviews, `
+		SELECT r.id, r.user_id, r.product_id, r.rating, r.comment, r.created_at, r.updated_at,
+			u.name AS user_name
+		FROM reviews r
+		JOIN users u ON u.id = r.user_id
+		WHERE r.product_id = $1
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT $2 OFFSET $3`,
+		productID, perPage, (page-1)*perPage,
+	)
+	if err != nil {
+		return nil, 0, translateError(err)
+	}
+	return reviews, total, nil
 }
 
 func (r *reviewRepository) HasUserReviewed(ctx context.Context, userID, productID uuid.UUID) (bool, error) {
-	var count int64
-	err := r.db.DB().WithContext(ctx).
-		Model(&model.Review{}).
-		Where("user_id = ? AND product_id = ?", userID, productID).
-		Count(&count).Error
-	return count > 0, err
+	var exists bool
+	err := r.db.DB().GetContext(ctx, &exists,
+		"SELECT EXISTS (SELECT 1 FROM reviews WHERE user_id = $1 AND product_id = $2)",
+		userID, productID,
+	)
+	return exists, translateError(err)
 }
 
 func (r *reviewRepository) HasUserPurchased(ctx context.Context, userID, productID uuid.UUID) (bool, error) {
-	var count int64
-	err := r.db.DB().WithContext(ctx).
-		Model(&model.OrderItem{}).
-		Joins("JOIN orders ON orders.id = order_items.order_id").
-		Where("orders.user_id = ? AND order_items.product_id = ? AND orders.status IN (?, ?)",
-			userID, productID, constant.OrderStatusShipped, constant.OrderStatusCompleted).
-		Count(&count).Error
-	return count > 0, err
+	var exists bool
+	err := r.db.DB().GetContext(ctx, &exists, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM order_items oi
+			JOIN orders o ON o.id = oi.order_id
+			WHERE o.user_id = $1 AND oi.product_id = $2 AND o.status IN ($3, $4)
+		)`,
+		userID, productID, constant.OrderStatusShipped, constant.OrderStatusCompleted,
+	)
+	return exists, translateError(err)
 }

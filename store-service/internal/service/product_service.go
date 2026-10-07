@@ -11,7 +11,6 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"gorm.io/gorm"
 )
 
 type ProductService interface {
@@ -104,7 +103,7 @@ func (s *productService) CreateProduct(ctx context.Context, userID uuid.UUID, re
 	}
 
 	if err := s.productRepo.Create(ctx, product); err != nil {
-		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+		if errors.Is(err, repository.ErrForeignKeyViolation) {
 			return nil, errors.New("category not found")
 		}
 		logger.Error(ctx, "failed to create product", err)
@@ -192,7 +191,7 @@ func (s *productService) UpdateProduct(ctx context.Context, userID uuid.UUID, id
 	}
 
 	if err := s.productRepo.Update(ctx, product); err != nil {
-		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+		if errors.Is(err, repository.ErrForeignKeyViolation) {
 			return nil, errors.New("category not found")
 		}
 		logger.Error(ctx, "failed to update product", err)
@@ -229,7 +228,7 @@ func (s *productService) DeleteProduct(ctx context.Context, userID uuid.UUID, id
 	}
 
 	if err := s.productRepo.Delete(ctx, id); err != nil {
-		if errors.Is(err, gorm.ErrForeignKeyViolated) {
+		if errors.Is(err, repository.ErrForeignKeyViolation) {
 			return errors.New("product is in use by existing orders or carts")
 		}
 		logger.Error(ctx, "failed to delete product", err)

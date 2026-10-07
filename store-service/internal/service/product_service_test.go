@@ -8,11 +8,11 @@ import (
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/mocks"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
-	"gorm.io/gorm"
 )
 
 func TestProductService_CreateProduct(t *testing.T) {
@@ -231,7 +231,7 @@ func TestProductService_DeleteProduct(t *testing.T) {
 			mockSetup: func(prodRepo *mocks.MockProductRepository, storeRepo *mocks.MockStoreRepository) {
 				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{ID: storeID, UserID: userID}, nil)
 				prodRepo.EXPECT().FindByID(gomock.Any(), productID).Return(&model.Product{ID: productID, StoreID: storeID}, nil)
-				prodRepo.EXPECT().Delete(gomock.Any(), productID).Return(gorm.ErrForeignKeyViolated)
+				prodRepo.EXPECT().Delete(gomock.Any(), productID).Return(repository.ErrForeignKeyViolation)
 			},
 			wantErr:     true,
 			errContains: "in use",
