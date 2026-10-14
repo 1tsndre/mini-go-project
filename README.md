@@ -56,7 +56,7 @@ Repositories run plain SQL through sqlx; there is no ORM. The schema is defined 
 - **Auth** — JWT access/refresh tokens, role-based access control (Admin, Buyer, Seller). Refresh tokens are rotated: each one works once, its session is stored in Redis, and logout revokes it
 - **Products** — Full CRUD, full-text search, filter by category/price, image upload
 - **Cart** — Redis-first with PostgreSQL fallback, persists across sessions, always shows current product prices (the price checkout charges)
-- **Orders** — Checkout reserves stock atomically in a single database transaction (conditional decrement, so stock can never go negative), split into one order per store (a single checkout may create multiple orders), status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing` (stock is returned in the same transaction)
+- **Orders** — Checkout reserves stock atomically in a single database transaction (conditional decrement, so stock can never go negative), split into one order per store (a single checkout may create multiple orders), status flow: `pending → paid → processing → shipping → shipped → completed`, cancellation up to `processing` (stock is returned in the same transaction). An `Idempotency-Key` header makes checkout safe to retry: a retry with the same key and body gets the first response again (marked `Idempotent-Replayed: true`), the same key with another body is refused with 422, and a retry while the first request still runs with 409
 - **Payment Pipeline** — Async via NSQ: order created → payment processed (mock) → status updated. Checkout writes `order.created` to a transactional outbox, in the same transaction as the orders, and a relay publishes it within a second, so a message is never lost between the database commit and NSQ. Orders still pending after 2 minutes are republished, and the payment service answers duplicate deliveries for an order with its recorded result
 - **Reviews** — One review per purchased product, rating 1–5 with optional comment
 - **Rate Limiting** — Sliding window using Redis Sorted Sets
@@ -246,7 +246,7 @@ docker-compose down                    # stop everything
 ### Order
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| POST | `/api/v1/orders` | Checkout (creates one order per store) | Buyer |
+| POST | `/api/v1/orders` | Checkout (creates one order per store; optional `Idempotency-Key` header) | Buyer |
 | GET | `/api/v1/orders` | List buyer orders | Buyer |
 | GET | `/api/v1/orders/:id` | Get order detail | Buyer |
 | PUT | `/api/v1/orders/:id/cancel` | Cancel order | Buyer |

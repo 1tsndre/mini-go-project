@@ -2287,8 +2287,15 @@
         "consumes": [
           "application/json"
         ],
-        "description": "Create orders from cart items, grouped into one order per store (a single checkout may produce multiple orders), with distributed lock for stock. Returns the array of created orders.",
+        "description": "Create orders from cart items, grouped into one order per store (a single checkout may produce multiple orders), with distributed lock for stock. Returns the array of created orders. With an Idempotency-Key header the checkout is safe to retry: a retry with the same key and body gets the first response again, marked with the Idempotent-Replayed header, instead of a second checkout.",
         "parameters": [
+          {
+            "description": "Makes the checkout safe to retry: keys are per user, kept for 24 hours, at most 255 characters",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "type": "string"
+          },
           {
             "description": "Checkout request",
             "in": "body",
@@ -2322,10 +2329,16 @@
                   "type": "object"
                 }
               ]
+            },
+            "headers": {
+              "Idempotent-Replayed": {
+                "description": "\"true\" when the response is the stored response of an earlier request with the same Idempotency-Key",
+                "type": "string"
+              }
             }
           },
           "400": {
-            "description": "Bad Request \u2014 validation error, empty cart, or INSUFFICIENT_STOCK",
+            "description": "Bad Request \u2014 validation error, empty cart, INSUFFICIENT_STOCK, or an Idempotency-Key over 255 characters",
             "schema": {
               "allOf": [
                 {
@@ -2382,6 +2395,69 @@
           },
           "404": {
             "description": "Not Found",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "409": {
+            "description": "Conflict - a request with this Idempotency-Key is still being processed",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "413": {
+            "description": "Payload Too Large - the body of a request with an Idempotency-Key is over the size limit",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity - the Idempotency-Key was already used with a different request body",
             "schema": {
               "allOf": [
                 {

@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # QA Test Script - mini-go-project
-# 89 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
+# 93 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
 # Usage: ./qa_test.sh [BASE_URL]
 #
 # Login rate limit (10/min) is handled automatically via a file counter.
@@ -23,8 +23,9 @@ RESET='\033[0m'
 # Temp files — cleaned up automatically when the script finishes
 RESP_FILE=$(mktemp)
 RATE_FILE=$(mktemp)
+HDR_FILE=$(mktemp)
 echo "0" > "$RATE_FILE"
-trap 'rm -f "$RESP_FILE" "$RATE_FILE"' EXIT
+trap 'rm -f "$RESP_FILE" "$RATE_FILE" "$HDR_FILE"' EXIT
 
 LOGIN_RATE_LIMIT=9   # trigger wait after 9 calls (margin of 1)
 
@@ -87,6 +88,20 @@ do_post() {
       -H "Content-Type: application/json" \
       --data-binary "$body"
   fi
+}
+
+# do_post_idem: POST with an Idempotency-Key; the response headers go to HDR_FILE
+do_post_idem() {
+  local path="$1" body="$2" token="$3" key="$4"
+  curl -s -w "\n%{http_code}" -X POST "$BASE_URL$path" -D "$HDR_FILE" \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $token" \
+    -H "Idempotency-Key: $key" \
+    --data-binary "$body"
+}
+
+header_get() {
+  grep -i "^$1:" "$HDR_FILE" | head -n 1 | cut -d' ' -f2- | tr -d '\r'
 }
 
 do_put() {
@@ -707,6 +722,26 @@ assert "Cancel order (pending) → 200" "200" "$RESP_CODE" "message" "order canc
 parse_response "$(do_post "/api/v1/orders" \
   '{"shipping_address":"1 Empty Cart St"}' "$BUYER2_TOKEN")"
 assert "Checkout empty cart → 400" "400" "$RESP_CODE"
+
+# Idempotent checkout: a retry with the same Idempotency-Key replays the first response
+IDEM_KEY="qa-checkout-$TIMESTAMP"
+do_post "/api/v1/cart/items" \
+  "{\"product_id\":\"$PROD_ID\",\"quantity\":1}" "$BUYER2_TOKEN" > /dev/null
+parse_response "$(do_post_idem "/api/v1/orders" '{"shipping_address":"1 Retry St"}' "$BUYER2_TOKEN" "$IDEM_KEY")"
+IDEM_ORDER_ID=$(json_get "$RESP_BODY" "data.0.id")
+assert "Checkout with Idempotency-Key → 201" "201" "$RESP_CODE" \
+  "order created" "true" "$([ -n "$IDEM_ORDER_ID" ] && echo true || echo false)"
+
+parse_response "$(do_post_idem "/api/v1/orders" '{"shipping_address":"1 Retry St"}' "$BUYER2_TOKEN" "$IDEM_KEY")"
+REPLAY_ORDER_ID=$(json_get "$RESP_BODY" "data.0.id")
+assert "Checkout retried with the same key → 201, same order" "201" "$RESP_CODE" \
+  "order id" "$IDEM_ORDER_ID" "$REPLAY_ORDER_ID"
+assert "Retried checkout is marked Idempotent-Replayed" "201" "$RESP_CODE" \
+  "Idempotent-Replayed" "true" "$(header_get "Idempotent-Replayed")"
+
+parse_response "$(do_post_idem "/api/v1/orders" '{"shipping_address":"2 Other St"}' "$BUYER2_TOKEN" "$IDEM_KEY")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Same Idempotency-Key, different body → 422" "422" "$RESP_CODE" "error code" "VALIDATION_ERROR" "$CODE"
 
 # Get order invalid UUID → 400
 parse_response "$(do_get "/api/v1/orders/not-a-uuid" "$BUYER2_TOKEN")"

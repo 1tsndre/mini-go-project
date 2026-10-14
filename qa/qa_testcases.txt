@@ -1,7 +1,7 @@
 ================================================================================
 QA TEST CASES - mini-go-project
 E-Commerce REST API
-Total: 89 test case
+Total: 93 test case
 ================================================================================
 
 Description:
@@ -597,7 +597,7 @@ TC-058
             (0001-01-01T00:00:00Z) in the updated_at field.
 
 --------------------------------------------------------------------------------
-6. ORDER (18 test)
+6. ORDER (22 test)
 --------------------------------------------------------------------------------
 
 TC-059
@@ -733,6 +733,50 @@ TC-071
             ORDER2 was checked out in TC-070.
 
 TC-072
+  Name    : Checkout with Idempotency-Key → 201
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : BUYER2_TOKEN
+  Headers : Idempotency-Key: qa-checkout-<ts>
+  Body    : { "shipping_address": "1 Retry St" }
+  Setup   : Add PROD_ID x1 to BUYER2's cart.
+  Assert  : HTTP 201
+            data[0].id != ""
+  Purpose : A checkout with an Idempotency-Key is handled like any other and its
+            response stored for the key.
+
+TC-073
+  Name    : Checkout retried with the same key → 201, same order
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : BUYER2_TOKEN
+  Headers : Idempotency-Key: qa-checkout-<ts>
+  Body    : { "shipping_address": "1 Retry St" }
+  Assert  : HTTP 201
+            data[0].id = the order created above
+  Purpose : A client that never got the first response can retry safely: it gets
+            the same order back instead of an empty-cart error or a second order.
+
+TC-074
+  Name    : Retried checkout is marked Idempotent-Replayed
+  Method  : (same response as above)
+  Assert  : HTTP 201
+            header Idempotent-Replayed = "true"
+  Purpose : The client can tell a replayed response from a new one.
+
+TC-075
+  Name    : Same Idempotency-Key, different body → 422
+  Method  : POST
+  URL     : /api/v1/orders
+  Auth    : BUYER2_TOKEN
+  Headers : Idempotency-Key: qa-checkout-<ts>
+  Body    : { "shipping_address": "2 Other St" }
+  Assert  : HTTP 422
+            errors[0].code = "VALIDATION_ERROR"
+  Purpose : A key belongs to one request; reusing it for another one is a client
+            bug and is refused instead of replaying an unrelated response.
+
+TC-076
   Name    : Get order invalid UUID → 400
   Method  : GET
   URL     : /api/v1/orders/not-a-uuid
@@ -741,7 +785,7 @@ TC-072
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param must be rejected in the handler.
 
-TC-073
+TC-077
   Name    : Update order status invalid transition → 400
   Method  : PUT
   URL     : /api/v1/orders/<ORDER2_ID>/status
@@ -751,7 +795,7 @@ TC-073
   Purpose : Cannot advance the status of an order that is already "cancelled".
             Invalid status transitions must be rejected.
 
-TC-074
+TC-078
   Name    : Cancel order invalid UUID → 400
   Method  : PUT
   URL     : /api/v1/orders/not-a-uuid/cancel
@@ -761,7 +805,7 @@ TC-074
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param must be rejected in the handler.
 
-TC-075
+TC-079
   Name    : Checkout multi-store → 201 + 2 orders (1 per store)
   Method  : POST
   URL     : /api/v1/orders
@@ -775,7 +819,7 @@ TC-075
   Purpose : Prove fix B — a single multi-store checkout is split into one order
             per store (not one combined order).
 
-TC-076
+TC-080
   Name    : Seller2 /seller/orders → only its own store items
   Method  : GET
   URL     : /api/v1/seller/orders
@@ -791,7 +835,7 @@ TC-076
 7. REVIEW (6 test)
 --------------------------------------------------------------------------------
 
-TC-077
+TC-081
   Name    : Review rating 0 → 400
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -801,7 +845,7 @@ TC-077
             errors[0].field = "rating"
   Purpose : Rating 0 (below the minimum of 1) must be rejected by the handler validation.
 
-TC-078
+TC-082
   Name    : Review without purchase → 403
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -813,7 +857,7 @@ TC-078
   Note    : BUYER_TOKEN is different from BUYER2_TOKEN. Only BUYER2 purchased this
             product. BUYER_TOKEN will be rejected in the service layer.
 
-TC-079
+TC-083
   Name    : Review valid (after shipped) → 201
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -824,7 +868,7 @@ TC-079
   Purpose : A review can be created after the order reaches "shipped".
   Note    : The script updates ORDER_ID to "shipped" before this test.
 
-TC-080
+TC-084
   Name    : Review duplicate → 409 CONFLICT
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -835,7 +879,7 @@ TC-080
   Purpose : A buyer may only submit one review per product. A second review for
             the same product must be rejected.
 
-TC-081
+TC-085
   Name    : Review rating > 5 → 400
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -845,7 +889,7 @@ TC-081
             errors[0].field = "rating"
   Purpose : A rating above 5 (the maximum) must be rejected by the handler validation.
 
-TC-082
+TC-086
   Name    : List reviews → 200 + pagination
   Method  : GET
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -858,7 +902,7 @@ TC-082
 8. ERROR CASES (7 test)
 --------------------------------------------------------------------------------
 
-TC-083
+TC-087
   Name    : 404 unknown endpoint → JSON NOT_FOUND
   Method  : GET
   URL     : /api/v1/endpoint-does-not-exist
@@ -868,7 +912,7 @@ TC-083
   Purpose : An unregistered endpoint must return JSON 404, not the default plain
             text from Go's net/http mux.
 
-TC-084
+TC-088
   Name    : Invalid UUID path param (product) → 400
   Method  : GET
   URL     : /api/v1/products/not-a-uuid
@@ -878,7 +922,7 @@ TC-084
   Purpose : A non-UUID string in a path param must be rejected with 400, not 500
             or a panic.
 
-TC-085
+TC-089
   Name    : Token invalid → 401 UNAUTHORIZED
   Method  : GET
   URL     : /api/v1/cart
@@ -888,7 +932,7 @@ TC-085
   Purpose : An invalid JWT (malformed/expired/bad signature) must be rejected by
             the auth middleware.
 
-TC-086
+TC-090
   Name    : Bad Authorization format → 401
   Method  : GET
   URL     : /api/v1/cart
@@ -897,7 +941,7 @@ TC-086
   Purpose : An Authorization header that does not follow the "Bearer <token>"
             format must be rejected by the auth middleware.
 
-TC-087
+TC-091
   Name    : Seller access buyer endpoint → 403
   Method  : GET
   URL     : /api/v1/cart
@@ -907,7 +951,7 @@ TC-087
   Purpose : An endpoint requiring the buyer role must reject a seller with 403.
             The role check is done by the RequireRole middleware.
 
-TC-088
+TC-092
   Name    : Body not JSON → 400
   Method  : POST
   URL     : /api/v1/auth/login
@@ -916,7 +960,7 @@ TC-088
   Assert  : HTTP 400
   Purpose : A request body that is not valid JSON must be rejected by json.Decoder.
 
-TC-089
+TC-093
   Name    : Rate limit login (11th) → 429
   Method  : POST (11x)
   URL     : /api/v1/auth/login
@@ -940,17 +984,17 @@ ORDER FLOW UNDER TEST
     │ update status → shipping (TC-067)
     ▼
   shipping
-    │ update status → shipped (done in TC-079 setup)
+    │ update status → shipped (done in TC-083 setup)
     ▼
   shipped
-    │ review can be created (TC-079)
+    │ review can be created (TC-083)
     ▼
   (completed — not tested, requires buyer confirmation)
 
   Cancel flow:
     pending → cancel OK (TC-070)
     shipping → cancel REJECTED (TC-069)
-    cancelled → update status REJECTED (TC-073)
+    cancelled → update status REJECTED (TC-077)
 
 ================================================================================
 RATE LIMIT VALIDATION

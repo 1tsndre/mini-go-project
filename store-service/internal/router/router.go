@@ -11,6 +11,7 @@ import (
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/handler"
 	"github.com/1tsndre/mini-go-project/store-service/internal/middleware"
+	rediscache "github.com/1tsndre/mini-go-project/store-service/internal/repository/caches/redis"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -43,6 +44,7 @@ func NewRouter(
 	loginRate := rateLimiter.Limit(rateCfg.Login, time.Minute, constant.RateLimitKeyLogin)
 	publicRate := rateLimiter.Limit(rateCfg.Public, time.Minute, constant.RateLimitKeyPublic)
 	authRate := rateLimiter.Limit(rateCfg.Auth, time.Minute, constant.RateLimitKeyAuth)
+	idempotency := middleware.Idempotency(rediscache.NewRedisCache(redisClient))
 
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		meta := middleware.BuildMeta(r)
@@ -84,7 +86,7 @@ func NewRouter(
 	mux.Handle("PUT /api/v1/cart/items/{product_id}", middleware.Chain(http.HandlerFunc(handlers.Cart.UpdateItem), authMw, buyerMw, authRate))
 	mux.Handle("DELETE /api/v1/cart/items/{product_id}", middleware.Chain(http.HandlerFunc(handlers.Cart.RemoveItem), authMw, buyerMw, authRate))
 
-	mux.Handle("POST /api/v1/orders", middleware.Chain(http.HandlerFunc(handlers.Order.Checkout), authMw, buyerMw, authRate))
+	mux.Handle("POST /api/v1/orders", middleware.Chain(http.HandlerFunc(handlers.Order.Checkout), authMw, buyerMw, authRate, idempotency))
 	mux.Handle("GET /api/v1/orders", middleware.Chain(http.HandlerFunc(handlers.Order.GetOrders), authMw, buyerMw, authRate))
 	mux.Handle("GET /api/v1/orders/{id}", middleware.Chain(http.HandlerFunc(handlers.Order.GetOrder), authMw, buyerMw, authRate))
 	mux.Handle("PUT /api/v1/orders/{id}/cancel", middleware.Chain(http.HandlerFunc(handlers.Order.CancelOrder), authMw, buyerMw, authRate))

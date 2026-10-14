@@ -7,4 +7,6 @@ const (
 	MaxVarcharLength = 255
 	// MaxPasswordBytes is the longest password bcrypt accepts.
 	MaxPasswordBytes = 72
+	// MaxIdempotencyKeyLength is the longest Idempotency-Key header accepted, in bytes.
+	MaxIdempotencyKeyLength = 255
 )
