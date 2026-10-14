@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -32,8 +31,8 @@ type OrderService interface {
 	GetSellerOrders(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.OrderResponse, int64, error)
 	ProcessPaymentResult(ctx context.Context, orderID uuid.UUID, success bool) error
 	// RetryPendingPayments republishes order.created for orders still pending after
-	// olderThan, covering publishes that failed or were lost. It returns how many
-	// orders were republished.
+	// olderThan, covering messages that were lost after the outbox relay published
+	// them. It returns how many orders were republished.
 	RetryPendingPayments(ctx context.Context, olderThan time.Duration, limit int) (int, error)
 }
 
@@ -118,12 +117,6 @@ func (s *orderService) Checkout(ctx context.Context, userID uuid.UUID, shippingA
 		})
 	}
 
-	// A failed publish is not fatal: the order stays pending and the payment
-	// retry worker republishes it later.
-	for _, order := range orders {
-		s.publishOrderCreated(ctx, order)
-	}
-
 	responses := make([]model.OrderResponse, 0, len(orders))
 	for _, order := range orders {
 		responses = append(responses, order.ToResponse())
@@ -185,11 +178,7 @@ func (s *orderService) publishOrderCreated(ctx context.Context, order *model.Ord
 		return false
 	}
 
-	msg, err := json.Marshal(map[string]interface{}{
-		"order_id":     order.ID.String(),
-		"user_id":      order.UserID.String(),
-		"total_amount": order.TotalAmount.String(),
-	})
+	msg, err := order.CreatedMessage()
 	if err != nil {
 		logger.Error(ctx, "failed to marshal order.created payload", err)
 		return false

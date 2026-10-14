@@ -1,6 +1,7 @@
 package model
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -58,6 +59,15 @@ type OrderItemResponse struct {
 	Quantity  int             `json:"quantity"`
 	Price     decimal.Decimal `json:"price"`
 	Subtotal  decimal.Decimal `json:"subtotal"`
+}
+
+// CreatedMessage is the order.created message the payment service charges the order for.
+func (o *Order) CreatedMessage() ([]byte, error) {
+	return json.Marshal(map[string]string{
+		"order_id":     o.ID.String(),
+		"user_id":      o.UserID.String(),
+		"total_amount": o.TotalAmount.String(),
+	})
 }
 
 func (o *Order) ToResponse() OrderResponse {

@@ -79,6 +79,7 @@ func main() {
 	orderRepo := repository.NewOrderRepository(db, cache)
 	reviewRepo := repository.NewReviewRepository(db)
 	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
+	outboxRepo := repository.NewOutboxRepository(db)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
@@ -120,6 +121,9 @@ func main() {
 	paymentRetrier := worker.NewPaymentRetrier(orderService, constant.PaymentRetryInterval, constant.PaymentRetryAfter, constant.PaymentRetryBatchSize)
 	paymentRetrier.Start()
 
+	outboxRelay := worker.NewOutboxRelay(outboxRepo, nsqProducer, constant.OutboxRelayInterval, constant.OutboxRelayBatchSize)
+	outboxRelay.Start()
+
 	// Uploads are the largest bodies we accept; leave 1 MiB headroom for multipart overhead.
 	maxBodyBytes := cfg.Upload.MaxSize + 1<<20
 	handler := router.NewRouter(handlers, jwtManager, redisClient, cfg.Upload.Dir, maxBodyBytes, cfg.App.RequestTimeout, cfg.Rate)
@@ -156,6 +160,7 @@ func main() {
 	}
 
 	paymentRetrier.Stop()
+	outboxRelay.Stop()
 	paymentConsumer.Stop()
 	nsqProducer.Stop()
 	paymentClient.Close()

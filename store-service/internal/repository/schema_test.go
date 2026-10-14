@@ -71,6 +71,7 @@ func TestColumnListsMatchSchema(t *testing.T) {
 		"orders":      orderColumns,
 		"order_items": orderItemColumns,
 		"payments":    paymentColumns,
+		"outbox":      outboxColumns,
 	}
 
 	for table, list := range lists {
@@ -98,6 +99,7 @@ func TestModelTagsMatchSchema(t *testing.T) {
 		{model: model.Order{}, tables: []string{"orders"}},
 		{model: model.OrderItem{}, tables: []string{"order_items"}},
 		{model: model.Payment{}, tables: []string{"payments"}},
+		{model: model.OutboxMessage{}, tables: []string{"outbox"}},
 		{model: model.CartItemDB{}, tables: []string{"cart_items"}},
 		// The cart is read by joining cart_items with products.
 		{model: model.CartItem{}, tables: []string{"cart_items", "products"}},

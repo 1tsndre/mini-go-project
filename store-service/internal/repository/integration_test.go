@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -116,6 +117,7 @@ type fixtures struct {
 	carts      CartRepository
 	orders     OrderRepository
 	reviews    ReviewRepository
+	outbox     OutboxRepository
 }
 
 func newFixtures(t *testing.T) *fixtures {
@@ -132,6 +134,7 @@ func newFixtures(t *testing.T) *fixtures {
 		carts:      NewCartRepository(db, cache),
 		orders:     NewOrderRepository(db, cache),
 		reviews:    NewReviewRepository(db),
+		outbox:     NewOutboxRepository(db),
 	}
 }
 
@@ -631,4 +634,100 @@ func TestReviewRepository_Integration(t *testing.T) {
 	require.Len(t, reviews, 1)
 	assert.Equal(t, buyer.Name, reviews[0].UserName)
 	assert.Equal(t, "Solid", reviews[0].Comment)
+}
+
+// drainOutbox publishes every queued message into the void, so a test starts
+// from an empty outbox although other tests' checkouts queued messages too.
+func (f *fixtures) drainOutbox(t *testing.T) {
+	t.Helper()
+	for {
+		n, err := f.outbox.PublishPending(f.ctx, 100, func(model.OutboxMessage) error { return nil })
+		require.NoError(t, err)
+		if n == 0 {
+			return
+		}
+	}
+}
+
+func TestOutboxRepository_Integration(t *testing.T) {
+	f := newFixtures(t)
+	buyer := f.user(t)
+	store := f.store(t)
+	product := f.product(t, store.ID, f.category(t).ID, unique("Lamp"), "15.00", 50)
+
+	t.Run("checkout queues order.created, and a rejected message stays queued in order", func(t *testing.T) {
+		f.drainOutbox(t)
+		first, err := f.placeOrder(buyer, product, 1)
+		require.NoError(t, err)
+		second, err := f.placeOrder(buyer, product, 2)
+		require.NoError(t, err)
+
+		var seen []model.OutboxMessage
+		nsqdDown := errors.New("nsqd down")
+		published, err := f.outbox.PublishPending(f.ctx, 10, func(m model.OutboxMessage) error {
+			seen = append(seen, m)
+			if len(seen) == 2 {
+				return nsqdDown
+			}
+			return nil
+		})
+		assert.ErrorIs(t, err, nsqdDown)
+		assert.Equal(t, 1, published)
+		require.Len(t, seen, 2)
+		firstMessage, _ := first.CreatedMessage()
+		assert.Equal(t, constant.TopicOrderCreated, seen[0].Topic)
+		assert.Equal(t, string(firstMessage), seen[0].Payload)
+
+		var retried []model.OutboxMessage
+		published, err = f.outbox.PublishPending(f.ctx, 10, func(m model.OutboxMessage) error {
+			retried = append(retried, m)
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 1, published)
+		require.Len(t, retried, 1)
+		secondMessage, _ := second.CreatedMessage()
+		assert.Equal(t, string(secondMessage), retried[0].Payload)
+	})
+
+	t.Run("a failed checkout queues nothing", func(t *testing.T) {
+		f.drainOutbox(t)
+		_, err := f.placeOrder(buyer, product, 1000)
+		require.Error(t, err)
+
+		published, err := f.outbox.PublishPending(f.ctx, 10, func(model.OutboxMessage) error { return nil })
+		require.NoError(t, err)
+		assert.Zero(t, published)
+	})
+
+	t.Run("concurrent relays publish each message once", func(t *testing.T) {
+		f.drainOutbox(t)
+		for i := 0; i < 5; i++ {
+			_, err := f.placeOrder(buyer, product, 1)
+			require.NoError(t, err)
+		}
+
+		var mu sync.Mutex
+		seen := make(map[int64]int)
+		var wg sync.WaitGroup
+		for i := 0; i < 3; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, err := f.outbox.PublishPending(f.ctx, 10, func(m model.OutboxMessage) error {
+					mu.Lock()
+					defer mu.Unlock()
+					seen[m.ID]++
+					return nil
+				})
+				assert.NoError(t, err)
+			}()
+		}
+		wg.Wait()
+
+		assert.Len(t, seen, 5)
+		for id, count := range seen {
+			assert.Equal(t, 1, count, "message %d", id)
+		}
+	})
 }

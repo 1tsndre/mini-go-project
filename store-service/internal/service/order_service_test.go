@@ -87,12 +87,10 @@ func TestOrderService_Checkout(t *testing.T) {
 	}
 
 	tests := []struct {
-		name         string
-		publishErr   error
-		mockSetup    func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository)
-		errContains  string
-		wantOrders   int
-		wantMessages int
+		name        string
+		mockSetup   func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository)
+		errContains string
+		wantOrders  int
 	}{
 		{
 			name: "cart load fails",
@@ -113,17 +111,6 @@ func TestOrderService_Checkout(t *testing.T) {
 		},
 		{
 			name: "success - split into one order per store",
-			mockSetup: func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository) {
-				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(cart, nil)
-				orderRepo.EXPECT().CreateOrdersWithStock(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(reserveAll)
-				cartRepo.EXPECT().DeleteCart(gomock.Any(), userID).Return(nil)
-			},
-			wantOrders:   2,
-			wantMessages: 2,
-		},
-		{
-			name:       "success - publish failure does not fail checkout",
-			publishErr: errors.New("nsq down"),
 			mockSetup: func(orderRepo *mocks.MockOrderRepository, cartRepo *mocks.MockCartRepository) {
 				cartRepo.EXPECT().GetCart(gomock.Any(), userID).Return(cart, nil)
 				orderRepo.EXPECT().CreateOrdersWithStock(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(reserveAll)
@@ -170,7 +157,7 @@ func TestOrderService_Checkout(t *testing.T) {
 			storeRepo := mocks.NewMockStoreRepository(ctrl)
 			tt.mockSetup(orderRepo, cartRepo)
 
-			publisher := &fakePublisher{err: tt.publishErr}
+			publisher := &fakePublisher{}
 			svc := NewOrderService(orderRepo, cartRepo, storeRepo, nil, publisher)
 			resp, err := svc.Checkout(context.Background(), userID, "Jl. Test No. 1, Jakarta")
 
@@ -182,7 +169,7 @@ func TestOrderService_Checkout(t *testing.T) {
 			}
 			assert.NoError(t, err)
 			assert.Len(t, resp, tt.wantOrders)
-			assert.Len(t, publisher.messages, tt.wantMessages)
+			assert.Empty(t, publisher.messages, "the repository queues order.created in the outbox; the relay publishes it")
 		})
 	}
 }

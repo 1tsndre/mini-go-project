@@ -44,10 +44,11 @@ func (e *ErrInsufficientStock) Error() string {
 }
 
 type OrderRepository interface {
-	// CreateOrdersWithStock decrements stock for every reservation and inserts the
-	// orders returned by build in a single transaction. build receives the reserved
-	// products (post-decrement, in reservation order). Nothing is written unless
-	// every reservation succeeds.
+	// CreateOrdersWithStock decrements stock for every reservation, inserts the
+	// orders returned by build and queues an order.created message for each of them
+	// in the outbox, in a single transaction. build receives the reserved products
+	// (post-decrement, in reservation order). Nothing is written unless every
+	// reservation succeeds.
 	CreateOrdersWithStock(ctx context.Context, reservations []StockReservation, build func(reserved []model.Product) ([]*model.Order, error)) ([]*model.Order, error)
 	FindByID(ctx context.Context, id uuid.UUID) (*model.Order, error)
 	FindByUserID(ctx context.Context, userID uuid.UUID, page, perPage int) ([]model.Order, int64, error)
@@ -106,6 +107,13 @@ func (r *orderRepository) CreateOrdersWithStock(ctx context.Context, reservation
 		}
 		for _, order := range built {
 			if err := insertOrder(ctx, tx, order); err != nil {
+				return err
+			}
+			message, err := order.CreatedMessage()
+			if err != nil {
+				return err
+			}
+			if err := insertOutboxMessage(ctx, tx, constant.TopicOrderCreated, message); err != nil {
 				return err
 			}
 		}
