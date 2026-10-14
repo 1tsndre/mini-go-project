@@ -335,6 +335,8 @@ TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/mini_go_ecommerce
   go test ./store-service/internal/repository/ -v
 ```
 
+CI runs them on every push, against a PostgreSQL service container.
+
 ## License
 
 This project is a personal portfolio project.
