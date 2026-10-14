@@ -34,3 +34,6 @@ go.work.sum
 # QA scripts at root (moved to qa/)
 /qa_test.sh
 /qa_testcases.txt
+
+# Benchmark results (bench/report.py turns them into a table)
+/bench/results/

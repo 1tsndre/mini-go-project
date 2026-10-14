@@ -338,6 +338,10 @@ TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/mini_go_ecommerce
 
 CI runs them on every push, against a PostgreSQL service container.
 
+## Benchmark
+
+`bench/` holds a k6 load test with three scenarios (public reads, login, checkout). It only uses endpoints the Java, Python, Express and NestJS ports serve too, so it compares all five implementations; see [bench/README.md](bench/README.md).
+
 ## License
 
 This project is a personal portfolio project.
