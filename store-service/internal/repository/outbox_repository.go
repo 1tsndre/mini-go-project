@@ -29,6 +29,8 @@ func NewOutboxRepository(db databases.Database) OutboxRepository {
 }
 
 func (r *outboxRepository) PublishPending(ctx context.Context, limit int, publish func(model.OutboxMessage) error) (int, error) {
+	// The relay polls every second; logging each poll would bury the other queries.
+	ctx = databases.WithoutQueryLog(ctx)
 	published := 0
 	var publishErr error
 

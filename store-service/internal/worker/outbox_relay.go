@@ -60,9 +60,12 @@ func (o *OutboxRelay) Start() {
 
 // RunOnce publishes one batch of queued messages.
 func (o *OutboxRelay) RunOnce(ctx context.Context) {
-	_, err := o.outboxRepo.PublishPending(ctx, o.batchSize, func(message model.OutboxMessage) error {
+	published, err := o.outboxRepo.PublishPending(ctx, o.batchSize, func(message model.OutboxMessage) error {
 		return o.publisher.Publish(message.Topic, []byte(message.Payload))
 	})
+	if published > 0 {
+		logger.Debug(ctx, "published outbox messages", map[string]interface{}{"count": published})
+	}
 	if err != nil {
 		logger.Error(ctx, "failed to relay outbox messages", err)
 	}

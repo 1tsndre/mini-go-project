@@ -69,5 +69,8 @@ func (queryLogger) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Trac
 		logger.Error(ctx, "query failed", data.Err, fields)
 		return
 	}
+	if databases.QueryLogSuppressed(ctx) {
+		return
+	}
 	logger.Debug(ctx, "query", fields)
 }
