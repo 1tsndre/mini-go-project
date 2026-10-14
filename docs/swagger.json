@@ -198,6 +198,14 @@
       },
       "type": "object"
     },
+    "LogoutRequest": {
+      "properties": {
+        "refresh_token": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
     "OrderItem": {
       "properties": {
         "id": {
@@ -698,20 +706,20 @@
         ]
       }
     },
-    "/auth/refresh": {
+    "/auth/logout": {
       "post": {
         "consumes": [
           "application/json"
         ],
-        "description": "Get new token pair using refresh token",
+        "description": "Revoke a refresh token, ending its session: it can no longer be used to refresh. Access tokens already issued stay valid until they expire. Revoking a token that is already revoked succeeds too.",
         "parameters": [
           {
-            "description": "Refresh request",
+            "description": "Logout request",
             "in": "body",
             "name": "request",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/RefreshTokenRequest"
+              "$ref": "#/definitions/LogoutRequest"
             }
           }
         ],
@@ -722,11 +730,29 @@
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/ApiResponse"
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "properties": {
+                        "message": {
+                          "example": "logged out",
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
             }
           },
           "401": {
-            "description": "Unauthorized",
+            "description": "Unauthorized - not a valid refresh token",
             "schema": {
               "allOf": [
                 {
@@ -803,7 +829,139 @@
             }
           },
           "500": {
-            "description": "Internal Server Error - e.g. JWT generation failure",
+            "description": "Internal Server Error - e.g. the token store is unreachable",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "summary": "Log out",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "consumes": [
+          "application/json"
+        ],
+        "description": "Get a new token pair using a refresh token. A refresh token can be used once: refreshing revokes it, so a replayed or revoked token is answered with 401.",
+        "parameters": [
+          {
+            "description": "Refresh request",
+            "in": "body",
+            "name": "request",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/RefreshTokenRequest"
+            }
+          }
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/ApiResponse"
+            }
+          },
+          "401": {
+            "description": "Unauthorized - not a valid refresh token, or one already used or revoked",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Request limit per minute",
+                "type": "integer"
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current window",
+                "type": "integer"
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix timestamp when the rate limit resets",
+                "type": "integer"
+              }
+            },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "400": {
+            "description": "Bad Request - missing or invalid request body",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "Internal Server Error - e.g. JWT generation failure or the token store is unreachable",
             "schema": {
               "allOf": [
                 {

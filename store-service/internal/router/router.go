@@ -57,6 +57,7 @@ func NewRouter(
 	mux.Handle("POST /api/v1/auth/register", middleware.Chain(http.HandlerFunc(handlers.Auth.Register), loginRate, publicRate))
 	mux.Handle("POST /api/v1/auth/login", middleware.Chain(http.HandlerFunc(handlers.Auth.Login), loginRate, publicRate))
 	mux.Handle("POST /api/v1/auth/refresh", middleware.Chain(http.HandlerFunc(handlers.Auth.Refresh), authRate))
+	mux.Handle("POST /api/v1/auth/logout", middleware.Chain(http.HandlerFunc(handlers.Auth.Logout), authRate))
 
 	mux.Handle("POST /api/v1/stores", middleware.Chain(http.HandlerFunc(handlers.Store.CreateStore), authMw, buyerMw, authRate))
 	mux.Handle("GET /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.GetStore), publicRate))

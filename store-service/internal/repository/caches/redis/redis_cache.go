@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/repository/caches"
@@ -27,6 +28,22 @@ func (r *redisCache) Set(ctx context.Context, key string, value any, ttl time.Du
 		return err
 	}
 	return r.client.Set(ctx, key, data, ttl).Err()
+}
+
+func (r *redisCache) SetNX(ctx context.Context, key string, value any, ttl time.Duration) (bool, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return false, err
+	}
+	return r.client.SetNX(ctx, key, data, ttl).Result()
+}
+
+func (r *redisCache) Take(ctx context.Context, key string) ([]byte, error) {
+	data, err := r.client.GetDel(ctx, key).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, caches.ErrMiss
+	}
+	return data, err
 }
 
 func (r *redisCache) Delete(ctx context.Context, key string) error {

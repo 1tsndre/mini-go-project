@@ -2,8 +2,6 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/1tsndre/mini-go-project/store-service/internal/constant"
 	"github.com/1tsndre/mini-go-project/store-service/internal/model"
+	"github.com/1tsndre/mini-go-project/store-service/internal/repository/caches/memory"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/stdlib"
@@ -104,61 +103,12 @@ func openTestSchema(url string) (*sqlx.DB, string, error) {
 	return db, schema, nil
 }
 
-var errCacheMiss = errors.New("cache miss")
-
-// memCache is an in-memory caches.Cache that stores JSON, like the Redis cache.
-type memCache struct {
-	mu   sync.Mutex
-	data map[string][]byte
-}
-
-func (c *memCache) Get(_ context.Context, key string) ([]byte, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	value, ok := c.data[key]
-	if !ok {
-		return nil, errCacheMiss
-	}
-	return value, nil
-}
-
-func (c *memCache) Set(_ context.Context, key string, value any, _ time.Duration) error {
-	data, err := json.Marshal(value)
-	if err != nil {
-		return err
-	}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.data[key] = data
-	return nil
-}
-
-func (c *memCache) Delete(_ context.Context, key string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.data, key)
-	return nil
-}
-
-func (c *memCache) Exists(_ context.Context, key string) (bool, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	_, ok := c.data[key]
-	return ok, nil
-}
-
-func (c *memCache) clear() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.data = make(map[string][]byte)
-}
-
 // fixtures holds the repositories under test and creates the rows tests need.
 // Every row gets unique values, so the tests can share one schema.
 type fixtures struct {
 	ctx        context.Context
 	db         *sqlx.DB
-	cache      *memCache
+	cache      *memory.Cache
 	users      UserRepository
 	stores     StoreRepository
 	categories CategoryRepository
@@ -170,7 +120,7 @@ type fixtures struct {
 
 func newFixtures(t *testing.T) *fixtures {
 	db := testDB(t)
-	cache := &memCache{data: make(map[string][]byte)}
+	cache := memory.NewCache()
 	return &fixtures{
 		ctx:        context.Background(),
 		db:         db.DB(),
@@ -434,7 +384,7 @@ func TestCartRepository_Integration(t *testing.T) {
 	require.NoError(t, f.carts.SaveCart(f.ctx, cart))
 
 	// Without the cached copy, GetCart reads the PostgreSQL backup.
-	f.cache.clear()
+	f.cache.Clear()
 	loaded, err := f.carts.GetCart(f.ctx, buyer.ID)
 	require.NoError(t, err)
 	require.Len(t, loaded.Items, 2)
@@ -449,7 +399,7 @@ func TestCartRepository_Integration(t *testing.T) {
 
 	cart.Items = cart.Items[:1]
 	require.NoError(t, f.carts.SaveCart(f.ctx, cart))
-	f.cache.clear()
+	f.cache.Clear()
 	loaded, err = f.carts.GetCart(f.ctx, buyer.ID)
 	require.NoError(t, err)
 	assert.Len(t, loaded.Items, 1, "saving replaces the stored items")

@@ -31,6 +31,10 @@ type RefreshRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
 type UserResponse struct {
 	ID        uuid.UUID `json:"id"`
 	Email     string    `json:"email"`

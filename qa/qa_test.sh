@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # QA Test Script - mini-go-project
-# 84 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
+# 89 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
 # Usage: ./qa_test.sh [BASE_URL]
 #
 # Login rate limit (10/min) is handled automatically via a file counter.
@@ -392,6 +392,7 @@ assert "Login wrong password → 401" "401" "$RESP_CODE" "error code" "UNAUTHORI
 # Refresh token (authRate 120/min — does not use do_auth_post)
 parse_response "$(do_post "/api/v1/auth/refresh" "{\"refresh_token\":\"$BUYER_REFRESH\"}")"
 NEW_TOKEN=$(json_get "$RESP_BODY" "data.access_token")
+NEW_REFRESH=$(json_get "$RESP_BODY" "data.refresh_token")
 assert "Refresh token → 200 + new token" "200" "$RESP_CODE" \
   "access_token present" "true" "$([ -n "$NEW_TOKEN" ] && echo true || echo false)"
 
@@ -399,6 +400,27 @@ assert "Refresh token → 200 + new token" "200" "$RESP_CODE" \
 parse_response "$(do_post "/api/v1/auth/refresh" '{}')"
 FIELD=$(json_get "$RESP_BODY" "errors.0.field")
 assert "Refresh without token → 400" "400" "$RESP_CODE" "field" "refresh_token" "$FIELD"
+
+# Refresh tokens rotate: the refresh above revoked BUYER_REFRESH
+parse_response "$(do_post "/api/v1/auth/refresh" "{\"refresh_token\":\"$BUYER_REFRESH\"}")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Refresh with a used token → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
+
+parse_response "$(do_post "/api/v1/auth/logout" "{\"refresh_token\":\"$NEW_REFRESH\"}")"
+MSG=$(json_get "$RESP_BODY" "data.message")
+assert "Logout → 200" "200" "$RESP_CODE" "message" "logged out" "$MSG"
+
+parse_response "$(do_post "/api/v1/auth/refresh" "{\"refresh_token\":\"$NEW_REFRESH\"}")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Refresh after logout → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
+
+parse_response "$(do_post "/api/v1/auth/logout" '{}')"
+FIELD=$(json_get "$RESP_BODY" "errors.0.field")
+assert "Logout without token → 400" "400" "$RESP_CODE" "field" "refresh_token" "$FIELD"
+
+parse_response "$(do_post "/api/v1/auth/logout" "{\"refresh_token\":\"$BUYER_TOKEN\"}")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Logout with an access token → 401" "401" "$RESP_CODE" "error code" "UNAUTHORIZED" "$CODE"
 
 # =============================================================================
 # 2. STORE

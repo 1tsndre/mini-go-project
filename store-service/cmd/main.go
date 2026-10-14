@@ -78,10 +78,11 @@ func main() {
 	cartRepo := repository.NewCartRepository(db, cache)
 	orderRepo := repository.NewOrderRepository(db, cache)
 	reviewRepo := repository.NewReviewRepository(db)
+	refreshTokenRepo := repository.NewRefreshTokenRepository(cache)
 
 	jwtManager := pkgjwt.NewJWTManager(cfg.JWT.Secret, cfg.JWT.AccessExpiry, cfg.JWT.RefreshExpiry)
 
-	authService := service.NewAuthService(userRepo, jwtManager)
+	authService := service.NewAuthService(userRepo, refreshTokenRepo, jwtManager)
 	storeService := service.NewStoreService(storeRepo, userRepo)
 	categoryService := service.NewCategoryService(categoryRepo)
 	productService := service.NewProductService(productRepo, storeRepo)

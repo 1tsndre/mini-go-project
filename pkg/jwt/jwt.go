@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -28,6 +29,8 @@ type Claims struct {
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
+	// RefreshTokenID is the refresh token's jti, the key its session is stored under.
+	RefreshTokenID string `json:"-"`
 }
 
 type JWTManager struct {
@@ -44,21 +47,30 @@ func NewJWTManager(secret string, accessExpiry, refreshExpiry time.Duration) *JW
 	}
 }
 
+// GenerateTokenPair issues an access token and a refresh token. Only the refresh
+// token has a jti: it identifies the session, so the token can be revoked.
 func (m *JWTManager) GenerateTokenPair(userID, email, role string) (*TokenPair, error) {
-	accessToken, err := m.generateToken(userID, email, role, TokenTypeAccess, m.accessExpiry)
+	accessToken, err := m.generateToken(userID, email, role, TokenTypeAccess, m.accessExpiry, "")
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, err := m.generateToken(userID, email, role, TokenTypeRefresh, m.refreshExpiry)
+	refreshTokenID := uuid.NewString()
+	refreshToken, err := m.generateToken(userID, email, role, TokenTypeRefresh, m.refreshExpiry, refreshTokenID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &TokenPair{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		AccessToken:    accessToken,
+		RefreshToken:   refreshToken,
+		RefreshTokenID: refreshTokenID,
 	}, nil
+}
+
+// RefreshExpiry is how long a refresh token stays valid.
+func (m *JWTManager) RefreshExpiry() time.Duration {
+	return m.refreshExpiry
 }
 
 func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
@@ -83,7 +95,7 @@ func (m *JWTManager) ValidateToken(tokenString string) (*Claims, error) {
 	return claims, nil
 }
 
-func (m *JWTManager) generateToken(userID, email, role, tokenType string, expiry time.Duration) (string, error) {
+func (m *JWTManager) generateToken(userID, email, role, tokenType string, expiry time.Duration, id string) (string, error) {
 	claims := &Claims{
 		UserID: userID,
 		Email:  email,
@@ -92,6 +104,7 @@ func (m *JWTManager) generateToken(userID, email, role, tokenType string, expiry
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			ID:        id,
 		},
 	}
 

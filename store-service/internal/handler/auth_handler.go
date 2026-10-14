@@ -147,3 +147,36 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	response.Success(w, http.StatusOK, tokenPair, meta)
 }
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	meta := middleware.BuildMeta(r)
+
+	var req model.LogoutRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		response.ErrorResponse(w, http.StatusBadRequest, meta,
+			response.NewError(constant.ErrCodeValidation, "invalid request body"),
+		)
+		return
+	}
+
+	if req.RefreshToken == "" {
+		response.ValidationError(w, meta, []response.Error{
+			response.NewFieldError(constant.ErrCodeValidation, "refresh_token", "is required"),
+		})
+		return
+	}
+
+	if err := h.service.Logout(r.Context(), req); err != nil {
+		msg := err.Error()
+		if strings.Contains(msg, "internal") {
+			response.ErrorResponse(w, http.StatusInternalServerError, meta,
+				response.NewError(constant.ErrCodeInternal, msg))
+		} else {
+			response.ErrorResponse(w, http.StatusUnauthorized, meta,
+				response.NewError(constant.ErrCodeUnauthorized, msg))
+		}
+		return
+	}
+
+	response.Success(w, http.StatusOK, map[string]string{"message": "logged out"}, meta)
+}

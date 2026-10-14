@@ -8,6 +8,8 @@ const (
 	KeyUser      = "user:%s"
 	KeyRateLimit = "rate_limit:%s:%s"
 	KeyCartLock  = "cart_lock:%s"
+	// KeyRefreshToken holds the user ID of a refresh token that may still be used, by jti.
+	KeyRefreshToken = "refresh_token:%s"
 )
 
 const (
