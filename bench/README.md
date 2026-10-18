@@ -2,15 +2,13 @@
 
 A [k6](https://k6.io) load test of the store-service. This project has four ports that serve the same API, byte for byte: [Java](https://github.com/1tsndre/mini-java-project) (Spring Boot), [Python](https://github.com/1tsndre/mini-python-project) (Starlette), and [Express and NestJS](https://github.com/1tsndre/mini-nodeJS-project). The script only uses endpoints all of them have, so it measures the five implementations doing the same work.
 
-The ports do not have this project's newest features yet: logout and refresh-token rotation, the transactional outbox and the `Idempotency-Key` header. The ports ignore that header, and their login does not store a session in Redis, so the Go figures for `auth` and `checkout` include a little work the others skip.
-
 ## Scenarios
 
 | Scenario | Requests per iteration | What it stresses |
 |----------|------------------------|------------------|
 | `browse` | `GET /products?page=1&per_page=20`, `GET /products/{id}` | Public reads: SQL listing with a count, Redis-cached product details, JSON encoding |
 | `auth` | `POST /auth/login` | bcrypt (cost 10) |
-| `checkout` | `POST /cart/items`, `POST /orders` with an `Idempotency-Key` | The write path: the Redis cart lock, the checkout transaction with its stock reservation (in Go also its outbox row and the idempotency record) |
+| `checkout` | `POST /cart/items`, `POST /orders` with an `Idempotency-Key` | The write path: the Redis cart lock, the checkout transaction with its stock reservation and outbox row, and the idempotency record |
 
 Each run first creates its own category, store, 20 products and one buyer per virtual user (VU), so runs never share carts and can repeat against the same database. Only the seeded admin account is needed.
 
