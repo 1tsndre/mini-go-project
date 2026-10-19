@@ -1,7 +1,7 @@
 #!/bin/bash
 # =============================================================================
 # QA Test Script - mini-go-project
-# 93 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
+# 96 test case: Health, Auth, Store, Category, Product, Cart, Order (incl. multi-store split + gRPC payment status), Review, Error
 # Usage: ./qa_test.sh [BASE_URL]
 #
 # Login rate limit (10/min) is handled automatically via a file counter.
@@ -462,6 +462,18 @@ assert "Get store invalid UUID → 400" "400" "$RESP_CODE" "error code" "VALIDAT
 # Get store not found → 404
 parse_response "$(do_get "/api/v1/stores/00000000-0000-0000-0000-000000000000")"
 assert "Get store not found → 404" "404" "$RESP_CODE"
+
+parse_response "$(do_get "/api/v1/stores/me" "$SELLER_TOKEN")"
+MY_STORE_ID=$(json_get "$RESP_BODY" "data.id")
+assert "Get my store (seller) → 200" "200" "$RESP_CODE" "id match" "$STORE_ID" "$MY_STORE_ID"
+
+# BUYER2 never opened a store
+parse_response "$(do_get "/api/v1/stores/me" "$BUYER2_TOKEN")"
+CODE=$(json_get "$RESP_BODY" "errors.0.code")
+assert "Get my store without a store → 404" "404" "$RESP_CODE" "error code" "NOT_FOUND" "$CODE"
+
+parse_response "$(do_get "/api/v1/stores/me")"
+assert "Get my store without auth → 401" "401" "$RESP_CODE"
 
 parse_response "$(do_put "/api/v1/stores/$STORE_ID" \
   '{"name":"QA Store Updated","description":"Updated"}' "$SELLER_TOKEN")"

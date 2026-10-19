@@ -207,6 +207,7 @@ docker-compose down                    # stop everything
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | POST | `/api/v1/stores` | Create store (become seller) | Buyer |
+| GET | `/api/v1/stores/me` | Get my store (404 until the user opens one) | Any role |
 | GET | `/api/v1/stores/:id` | Get store details | - |
 | PUT | `/api/v1/stores/:id` | Update store | Seller |
 | POST | `/api/v1/stores/:id/logo` | Upload store logo | Seller |

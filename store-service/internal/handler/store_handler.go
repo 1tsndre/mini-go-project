@@ -93,6 +93,28 @@ func (h *StoreHandler) GetStore(w http.ResponseWriter, r *http.Request) {
 	response.Success(w, http.StatusOK, resp, meta)
 }
 
+func (h *StoreHandler) GetMyStore(w http.ResponseWriter, r *http.Request) {
+	meta := middleware.BuildMeta(r)
+
+	userID, err := uuid.Parse(middleware.GetUserID(r.Context()))
+	if err != nil {
+		response.ErrorResponse(w, http.StatusUnauthorized, meta,
+			response.NewError(constant.ErrCodeUnauthorized, "invalid user"),
+		)
+		return
+	}
+
+	resp, err := h.service.GetMyStore(r.Context(), userID)
+	if err != nil {
+		response.ErrorResponse(w, http.StatusNotFound, meta,
+			response.NewError(constant.ErrCodeNotFound, err.Error()),
+		)
+		return
+	}
+
+	response.Success(w, http.StatusOK, resp, meta)
+}
+
 func (h *StoreHandler) UpdateStore(w http.ResponseWriter, r *http.Request) {
 	meta := middleware.BuildMeta(r)
 

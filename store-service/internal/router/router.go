@@ -62,6 +62,8 @@ func NewRouter(
 	mux.Handle("POST /api/v1/auth/logout", middleware.Chain(http.HandlerFunc(handlers.Auth.Logout), authRate))
 
 	mux.Handle("POST /api/v1/stores", middleware.Chain(http.HandlerFunc(handlers.Store.CreateStore), authMw, buyerMw, authRate))
+	// Any logged-in user: a buyer who has not opened a store yet gets a 404.
+	mux.Handle("GET /api/v1/stores/me", middleware.Chain(http.HandlerFunc(handlers.Store.GetMyStore), authMw, authRate))
 	mux.Handle("GET /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.GetStore), publicRate))
 	mux.Handle("PUT /api/v1/stores/{id}", middleware.Chain(http.HandlerFunc(handlers.Store.UpdateStore), authMw, sellerMw, authRate))
 	mux.Handle("POST /api/v1/stores/{id}/logo", middleware.Chain(http.HandlerFunc(handlers.Store.UploadLogo), authMw, sellerMw, authRate))

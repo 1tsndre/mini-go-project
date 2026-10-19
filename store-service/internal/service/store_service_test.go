@@ -160,6 +160,55 @@ func TestStoreService_GetStoreByID(t *testing.T) {
 	}
 }
 
+func TestStoreService_GetMyStore(t *testing.T) {
+	storeID := uuid.New()
+	userID := uuid.New()
+
+	tests := []struct {
+		name        string
+		mockSetup   func(storeRepo *mocks.MockStoreRepository)
+		errContains string
+	}{
+		{
+			name: "success",
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(&model.Store{
+					ID:     storeID,
+					UserID: userID,
+					Name:   "My Store",
+				}, nil)
+			},
+		},
+		{
+			name: "the user has no store",
+			mockSetup: func(storeRepo *mocks.MockStoreRepository) {
+				storeRepo.EXPECT().FindByUserID(gomock.Any(), userID).Return(nil, repository.ErrNotFound)
+			},
+			errContains: "store not found",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			storeRepo := mocks.NewMockStoreRepository(ctrl)
+			tt.mockSetup(storeRepo)
+
+			resp, err := NewStoreService(storeRepo, mocks.NewMockUserRepository(ctrl)).GetMyStore(context.Background(), userID)
+
+			if tt.errContains != "" {
+				assert.ErrorContains(t, err, tt.errContains)
+				assert.Nil(t, resp)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, storeID, resp.ID)
+		})
+	}
+}
+
 func TestStoreService_UpdateStore(t *testing.T) {
 	storeID := uuid.New()
 	ownerID := uuid.New()

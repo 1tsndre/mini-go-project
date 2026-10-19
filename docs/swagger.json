@@ -4614,6 +4614,120 @@
         ]
       }
     },
+    "/stores/me": {
+      "get": {
+        "description": "The store of the authenticated user, of any role; a user who has not opened a store yet gets a 404",
+        "produces": [
+          "application/json"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/Store"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "429": {
+            "description": "Too Many Requests",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "Request limit per minute",
+                "type": "integer"
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Remaining requests in the current window",
+                "type": "integer"
+              },
+              "X-RateLimit-Reset": {
+                "description": "Unix timestamp when the rate limit resets",
+                "type": "integer"
+              }
+            },
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "404": {
+            "description": "Not Found \u2014 the user has no store",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/ApiResponse"
+                },
+                {
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "$ref": "#/definitions/ApiError"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "summary": "Get my store",
+        "tags": [
+          "Store"
+        ]
+      }
+    },
     "/stores/{id}": {
       "get": {
         "parameters": [

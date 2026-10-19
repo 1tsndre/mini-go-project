@@ -1,7 +1,7 @@
 ================================================================================
 QA TEST CASES - mini-go-project
 E-Commerce REST API
-Total: 93 test case
+Total: 96 test case
 ================================================================================
 
 Description:
@@ -207,7 +207,7 @@ TC-018
   Purpose : Only a refresh token identifies a session; an access token is refused.
 
 --------------------------------------------------------------------------------
-2. STORE (7 test)
+2. STORE (10 test)
 --------------------------------------------------------------------------------
 
 TC-019
@@ -256,6 +256,32 @@ TC-023
   Purpose : A valid UUID for a non-existent store must return 404.
 
 TC-024
+  Name    : Get my store (seller) → 200
+  Method  : GET
+  URL     : /api/v1/stores/me
+  Auth    : Bearer SELLER_TOKEN
+  Assert  : HTTP 200
+            data.id = STORE_ID
+  Purpose : A seller finds their own store without knowing its ID.
+
+TC-025
+  Name    : Get my store without a store → 404
+  Method  : GET
+  URL     : /api/v1/stores/me
+  Auth    : Bearer BUYER2_TOKEN
+  Assert  : HTTP 404
+            errors[0].code = "NOT_FOUND"
+  Purpose : A user who has not opened a store gets a 404, not someone else's store.
+
+TC-026
+  Name    : Get my store without auth → 401
+  Method  : GET
+  URL     : /api/v1/stores/me
+  Auth    : -
+  Assert  : HTTP 401
+  Purpose : "/stores/me" needs a token; it is not a store whose ID is "me".
+
+TC-027
   Name    : Update store (seller) → 200
   Method  : PUT
   URL     : /api/v1/stores/<STORE_ID>
@@ -265,7 +291,7 @@ TC-024
             data.name = "QA Store Updated"
   Purpose : The seller who owns the store can update its data.
 
-TC-025
+TC-028
   Name    : Update store without auth → 401
   Method  : PUT
   URL     : /api/v1/stores/<STORE_ID>
@@ -278,7 +304,7 @@ TC-025
 3. CATEGORY (12 test)
 --------------------------------------------------------------------------------
 
-TC-026
+TC-029
   Name    : Create category (admin) → OK
   Method  : POST
   URL     : /api/v1/categories
@@ -287,7 +313,7 @@ TC-026
   Assert  : CAT_ID != ""  (setup fixture check)
   Purpose : An admin can create a new category.
 
-TC-027
+TC-030
   Name    : Create category empty name → 400
   Method  : POST
   URL     : /api/v1/categories
@@ -297,7 +323,7 @@ TC-027
             errors[0].field = "name"
   Purpose : The name field is required when creating a category.
 
-TC-028
+TC-031
   Name    : Create category duplicate → 409
   Method  : POST
   URL     : /api/v1/categories
@@ -307,7 +333,7 @@ TC-028
             errors[0].code = "CONFLICT"
   Purpose : Category names must be unique; duplicates are rejected with 409.
 
-TC-029
+TC-032
   Name    : Create category without auth → 401
   Method  : POST
   URL     : /api/v1/categories
@@ -316,7 +342,7 @@ TC-029
   Assert  : HTTP 401
   Purpose : The create-category endpoint requires a valid token.
 
-TC-030
+TC-033
   Name    : Create category (buyer token) → 403
   Method  : POST
   URL     : /api/v1/categories
@@ -325,7 +351,7 @@ TC-030
   Assert  : HTTP 403
   Purpose : Only admins can create categories; a buyer is rejected with 403.
 
-TC-031
+TC-034
   Name    : Get categories → 200 (array, no raw DB error)
   Method  : GET
   URL     : /api/v1/categories
@@ -334,7 +360,7 @@ TC-031
             type(data) = list
   Purpose : The category list is publicly accessible and does not expose raw DB errors.
 
-TC-032
+TC-035
   Name    : Update category invalid UUID → 400
   Method  : PUT
   URL     : /api/v1/categories/not-a-uuid
@@ -344,7 +370,7 @@ TC-032
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param must be rejected.
 
-TC-033
+TC-036
   Name    : Update category not found → 404
   Method  : PUT
   URL     : /api/v1/categories/00000000-0000-0000-0000-000000000000
@@ -353,7 +379,7 @@ TC-033
   Assert  : HTTP 404
   Purpose : Updating a non-existent category must return 404.
 
-TC-034
+TC-037
   Name    : Update category by seller → 403
   Method  : PUT
   URL     : /api/v1/categories/<CAT_ID>
@@ -363,7 +389,7 @@ TC-034
   Purpose : Only admins can update categories; other roles are rejected with 403
             by the RequireRole(admin) middleware.
 
-TC-035
+TC-038
   Name    : Update category (admin) → 200
   Method  : PUT
   URL     : /api/v1/categories/<CAT_ID>
@@ -372,7 +398,7 @@ TC-035
   Assert  : HTTP 200
   Purpose : An admin can update a category name.
 
-TC-036
+TC-039
   Name    : Delete category not found → 404
   Method  : DELETE
   URL     : /api/v1/categories/00000000-0000-0000-0000-000000000000
@@ -381,7 +407,7 @@ TC-036
             errors[0].code = "NOT_FOUND"
   Purpose : Deleting a non-existent category must return 404 with an error code.
 
-TC-037
+TC-040
   Name    : Delete category (admin) → 200
   Method  : DELETE
   URL     : /api/v1/categories/<DEL_CAT_ID>
@@ -394,7 +420,7 @@ TC-037
 4. PRODUCT (12 test)
 --------------------------------------------------------------------------------
 
-TC-038
+TC-041
   Name    : Create product (seller) → OK
   Method  : POST
   URL     : /api/v1/products
@@ -404,7 +430,7 @@ TC-038
   Assert  : PROD_ID != ""  (setup fixture check)
   Purpose : A seller can create a new product.
 
-TC-039
+TC-042
   Name    : Create product without name → 400
   Method  : POST
   URL     : /api/v1/products
@@ -414,7 +440,7 @@ TC-039
             errors[0].field = "name"
   Purpose : The name field is required when creating a product.
 
-TC-040
+TC-043
   Name    : Create product without price → 400
   Method  : POST
   URL     : /api/v1/products
@@ -424,7 +450,7 @@ TC-040
             errors[0].field = "price"
   Purpose : The price field is required when creating a product.
 
-TC-041
+TC-044
   Name    : Create product without category_id → 400
   Method  : POST
   URL     : /api/v1/products
@@ -434,7 +460,7 @@ TC-041
             errors[0].field = "category_id"
   Purpose : The category_id field is required when creating a product.
 
-TC-042
+TC-045
   Name    : Create product without auth → 401
   Method  : POST
   URL     : /api/v1/products
@@ -443,7 +469,7 @@ TC-042
   Assert  : HTTP 401
   Purpose : Only an authenticated seller can create a product.
 
-TC-043
+TC-046
   Name    : Get products list → 200 + pagination
   Method  : GET
   URL     : /api/v1/products?page=1&per_page=5
@@ -452,7 +478,7 @@ TC-043
             meta.pagination.current_page = 1
   Purpose : The product list is publicly accessible and includes pagination metadata.
 
-TC-044
+TC-047
   Name    : Get product detail → 200
   Method  : GET
   URL     : /api/v1/products/<PROD_ID>
@@ -461,7 +487,7 @@ TC-044
             data.id = PROD_ID
   Purpose : Product details are publicly accessible without authentication.
 
-TC-045
+TC-048
   Name    : Get product not found → 404
   Method  : GET
   URL     : /api/v1/products/00000000-0000-0000-0000-000000000000
@@ -469,7 +495,7 @@ TC-045
   Assert  : HTTP 404
   Purpose : A non-existent product must return 404.
 
-TC-046
+TC-049
   Name    : Search product → 200
   Method  : GET
   URL     : /api/v1/products?search=QA%20Product
@@ -477,7 +503,7 @@ TC-046
   Assert  : HTTP 200
   Purpose : Product full-text search works without errors.
 
-TC-047
+TC-050
   Name    : Filter product by category_id → 200
   Method  : GET
   URL     : /api/v1/products?category_id=<CAT_ID>
@@ -485,7 +511,7 @@ TC-047
   Assert  : HTTP 200
   Purpose : Filtering products by category works without errors.
 
-TC-048
+TC-051
   Name    : Update product (seller) → 200
   Method  : PUT
   URL     : /api/v1/products/<PROD_ID>
@@ -496,7 +522,7 @@ TC-048
             data.price = 450000
   Purpose : The seller who owns the product can update its data.
 
-TC-049
+TC-052
   Name    : Delete product (seller) → 200
   Method  : DELETE
   URL     : /api/v1/products/<DEL_PROD_ID>
@@ -509,7 +535,7 @@ TC-049
 5. CART (9 test)
 --------------------------------------------------------------------------------
 
-TC-050
+TC-053
   Name    : Seller access cart → 403
   Method  : GET
   URL     : /api/v1/cart
@@ -518,7 +544,7 @@ TC-050
   Purpose : The cart endpoint is only accessible by buyers; a seller is rejected
             with 403 by the RequireRole(buyer) middleware.
 
-TC-051
+TC-054
   Name    : Add cart item quantity 0 → 400
   Method  : POST
   URL     : /api/v1/cart/items
@@ -528,7 +554,7 @@ TC-051
             errors[0].field = "quantity"
   Purpose : Quantity 0 must be rejected; a cart item must have a quantity of at least 1.
 
-TC-052
+TC-055
   Name    : Add cart item negative quantity → 400
   Method  : POST
   URL     : /api/v1/cart/items
@@ -538,7 +564,7 @@ TC-052
             errors[0].field = "quantity"
   Purpose : A negative quantity must be rejected by the handler validation.
 
-TC-053
+TC-056
   Name    : Add item to cart → 200
   Method  : POST
   URL     : /api/v1/cart/items
@@ -548,7 +574,7 @@ TC-053
             data.items[0].quantity = 2
   Purpose : Adding an item to the cart with a valid quantity should succeed.
 
-TC-054
+TC-057
   Name    : Get cart → 200 (1 item)
   Method  : GET
   URL     : /api/v1/cart
@@ -557,7 +583,7 @@ TC-054
             len(data.items) = 1
   Purpose : The buyer's cart can be retrieved and contains the added item.
 
-TC-055
+TC-058
   Name    : Update cart quantity → 200
   Method  : PUT
   URL     : /api/v1/cart/items/<PROD_ID>
@@ -567,7 +593,7 @@ TC-055
             data.items[0].quantity = 3
   Purpose : A cart item's quantity can be updated.
 
-TC-056
+TC-059
   Name    : Update cart item quantity 0 → 400
   Method  : PUT
   URL     : /api/v1/cart/items/<PROD_ID>
@@ -577,7 +603,7 @@ TC-056
             errors[0].field = "quantity"
   Purpose : Updating the quantity to 0 must be rejected; use DELETE to remove.
 
-TC-057
+TC-060
   Name    : Remove cart item → 200 (empty cart)
   Method  : DELETE
   URL     : /api/v1/cart/items/<PROD_ID>
@@ -586,7 +612,7 @@ TC-057
             len(data.items) = 0
   Purpose : Removing an item from the cart; after removal the cart is empty.
 
-TC-058
+TC-061
   Name    : Empty cart updated_at is not zero value
   Method  : GET
   URL     : /api/v1/cart
@@ -600,7 +626,7 @@ TC-058
 6. ORDER (22 test)
 --------------------------------------------------------------------------------
 
-TC-059
+TC-062
   Name    : Checkout without shipping_address → 400
   Method  : POST
   URL     : /api/v1/orders
@@ -610,7 +636,7 @@ TC-059
             errors[0].field = "shipping_address"
   Purpose : The shipping_address field is required at checkout.
 
-TC-060
+TC-063
   Name    : Checkout valid → 201 + shipping_address
   Method  : POST
   URL     : /api/v1/orders
@@ -622,7 +648,7 @@ TC-060
   Note    : The "data" response is an ARRAY of orders (one order per store).
             BUYER2's cart only has items from 1 store → data contains 1 order (data[0]).
 
-TC-061
+TC-064
   Name    : Order auto-paid via NSQ
   Method  : GET
   URL     : /api/v1/orders/<ORDER_ID>
@@ -636,7 +662,7 @@ TC-061
             ('cancelled'), the script creates a new order and retries until 'paid'
             (max 4x) so the status-flow tests below are deterministic.
 
-TC-062
+TC-065
   Name    : Get order payment status (gRPC) → 200 success
   Method  : GET
   URL     : /api/v1/orders/<ORDER_ID>/payment
@@ -647,7 +673,7 @@ TC-062
             payment-processor record of an order (async write via NSQ, sync read
             via gRPC). The order was paid, so the processor status is "success".
 
-TC-063
+TC-066
   Name    : Get payment status invalid UUID → 400
   Method  : GET
   URL     : /api/v1/orders/not-a-uuid/payment
@@ -656,7 +682,7 @@ TC-063
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param is rejected in the handler before the gRPC call.
 
-TC-064
+TC-067
   Name    : List orders (buyer) → 200
   Method  : GET
   URL     : /api/v1/orders
@@ -665,7 +691,7 @@ TC-064
             len(data) >= 1
   Purpose : A buyer can view the list of their own orders.
 
-TC-065
+TC-068
   Name    : List seller orders → 200
   Method  : GET
   URL     : /api/v1/seller/orders
@@ -673,7 +699,7 @@ TC-065
   Assert  : HTTP 200
   Purpose : A seller can view the list of incoming orders for their products.
 
-TC-066
+TC-069
   Name    : Update order status → processing
   Method  : PUT
   URL     : /api/v1/orders/<ORDER_ID>/status
@@ -682,7 +708,7 @@ TC-066
   Assert  : HTTP 200
   Purpose : A seller can advance the order status from "paid" to "processing".
 
-TC-067
+TC-070
   Name    : Update order status → shipping
   Method  : PUT
   URL     : /api/v1/orders/<ORDER_ID>/status
@@ -691,7 +717,7 @@ TC-067
   Assert  : HTTP 200
   Purpose : A seller can advance the order status from "processing" to "shipping".
 
-TC-068
+TC-071
   Name    : Update order status empty field → 400
   Method  : PUT
   URL     : /api/v1/orders/<ORDER_ID>/status
@@ -701,7 +727,7 @@ TC-068
             errors[0].field = "status"
   Purpose : The status field is required when updating an order's status.
 
-TC-069
+TC-072
   Name    : Cancel order (shipping) → 400 INVALID_STATUS
   Method  : PUT
   URL     : /api/v1/orders/<ORDER_ID>/cancel
@@ -712,7 +738,7 @@ TC-069
   Purpose : An order already in "shipping" cannot be cancelled. Cancellation is
             only allowed up to "processing".
 
-TC-070
+TC-073
   Name    : Cancel order (pending) → 200
   Method  : PUT
   URL     : /api/v1/orders/<ORDER2_ID>/cancel
@@ -722,7 +748,7 @@ TC-070
             data.message = "order cancelled"
   Purpose : An order still in "pending" can be cancelled by the buyer.
 
-TC-071
+TC-074
   Name    : Checkout empty cart → 400
   Method  : POST
   URL     : /api/v1/orders
@@ -730,9 +756,9 @@ TC-071
   Body    : { "shipping_address": "1 Empty Cart St" }
   Assert  : HTTP 400
   Purpose : Cannot checkout with an empty cart. BUYER2's cart was emptied after
-            ORDER2 was checked out in TC-070.
+            ORDER2 was checked out in TC-073.
 
-TC-072
+TC-075
   Name    : Checkout with Idempotency-Key → 201
   Method  : POST
   URL     : /api/v1/orders
@@ -745,7 +771,7 @@ TC-072
   Purpose : A checkout with an Idempotency-Key is handled like any other and its
             response stored for the key.
 
-TC-073
+TC-076
   Name    : Checkout retried with the same key → 201, same order
   Method  : POST
   URL     : /api/v1/orders
@@ -757,14 +783,14 @@ TC-073
   Purpose : A client that never got the first response can retry safely: it gets
             the same order back instead of an empty-cart error or a second order.
 
-TC-074
+TC-077
   Name    : Retried checkout is marked Idempotent-Replayed
   Method  : (same response as above)
   Assert  : HTTP 201
             header Idempotent-Replayed = "true"
   Purpose : The client can tell a replayed response from a new one.
 
-TC-075
+TC-078
   Name    : Same Idempotency-Key, different body → 422
   Method  : POST
   URL     : /api/v1/orders
@@ -776,7 +802,7 @@ TC-075
   Purpose : A key belongs to one request; reusing it for another one is a client
             bug and is refused instead of replaying an unrelated response.
 
-TC-076
+TC-079
   Name    : Get order invalid UUID → 400
   Method  : GET
   URL     : /api/v1/orders/not-a-uuid
@@ -785,7 +811,7 @@ TC-076
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param must be rejected in the handler.
 
-TC-077
+TC-080
   Name    : Update order status invalid transition → 400
   Method  : PUT
   URL     : /api/v1/orders/<ORDER2_ID>/status
@@ -795,7 +821,7 @@ TC-077
   Purpose : Cannot advance the status of an order that is already "cancelled".
             Invalid status transitions must be rejected.
 
-TC-078
+TC-081
   Name    : Cancel order invalid UUID → 400
   Method  : PUT
   URL     : /api/v1/orders/not-a-uuid/cancel
@@ -805,7 +831,7 @@ TC-078
             errors[0].code = "VALIDATION_ERROR"
   Purpose : An invalid UUID path param must be rejected in the handler.
 
-TC-079
+TC-082
   Name    : Checkout multi-store → 201 + 2 orders (1 per store)
   Method  : POST
   URL     : /api/v1/orders
@@ -819,7 +845,7 @@ TC-079
   Purpose : Prove fix B — a single multi-store checkout is split into one order
             per store (not one combined order).
 
-TC-080
+TC-083
   Name    : Seller2 /seller/orders → only its own store items
   Method  : GET
   URL     : /api/v1/seller/orders
@@ -835,7 +861,7 @@ TC-080
 7. REVIEW (6 test)
 --------------------------------------------------------------------------------
 
-TC-081
+TC-084
   Name    : Review rating 0 → 400
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -845,7 +871,7 @@ TC-081
             errors[0].field = "rating"
   Purpose : Rating 0 (below the minimum of 1) must be rejected by the handler validation.
 
-TC-082
+TC-085
   Name    : Review without purchase → 403
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -857,7 +883,7 @@ TC-082
   Note    : BUYER_TOKEN is different from BUYER2_TOKEN. Only BUYER2 purchased this
             product. BUYER_TOKEN will be rejected in the service layer.
 
-TC-083
+TC-086
   Name    : Review valid (after shipped) → 201
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -868,7 +894,7 @@ TC-083
   Purpose : A review can be created after the order reaches "shipped".
   Note    : The script updates ORDER_ID to "shipped" before this test.
 
-TC-084
+TC-087
   Name    : Review duplicate → 409 CONFLICT
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -879,7 +905,7 @@ TC-084
   Purpose : A buyer may only submit one review per product. A second review for
             the same product must be rejected.
 
-TC-085
+TC-088
   Name    : Review rating > 5 → 400
   Method  : POST
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -889,7 +915,7 @@ TC-085
             errors[0].field = "rating"
   Purpose : A rating above 5 (the maximum) must be rejected by the handler validation.
 
-TC-086
+TC-089
   Name    : List reviews → 200 + pagination
   Method  : GET
   URL     : /api/v1/products/<PROD_ID>/reviews
@@ -902,7 +928,7 @@ TC-086
 8. ERROR CASES (7 test)
 --------------------------------------------------------------------------------
 
-TC-087
+TC-090
   Name    : 404 unknown endpoint → JSON NOT_FOUND
   Method  : GET
   URL     : /api/v1/endpoint-does-not-exist
@@ -912,7 +938,7 @@ TC-087
   Purpose : An unregistered endpoint must return JSON 404, not the default plain
             text from Go's net/http mux.
 
-TC-088
+TC-091
   Name    : Invalid UUID path param (product) → 400
   Method  : GET
   URL     : /api/v1/products/not-a-uuid
@@ -922,7 +948,7 @@ TC-088
   Purpose : A non-UUID string in a path param must be rejected with 400, not 500
             or a panic.
 
-TC-089
+TC-092
   Name    : Token invalid → 401 UNAUTHORIZED
   Method  : GET
   URL     : /api/v1/cart
@@ -932,7 +958,7 @@ TC-089
   Purpose : An invalid JWT (malformed/expired/bad signature) must be rejected by
             the auth middleware.
 
-TC-090
+TC-093
   Name    : Bad Authorization format → 401
   Method  : GET
   URL     : /api/v1/cart
@@ -941,7 +967,7 @@ TC-090
   Purpose : An Authorization header that does not follow the "Bearer <token>"
             format must be rejected by the auth middleware.
 
-TC-091
+TC-094
   Name    : Seller access buyer endpoint → 403
   Method  : GET
   URL     : /api/v1/cart
@@ -951,7 +977,7 @@ TC-091
   Purpose : An endpoint requiring the buyer role must reject a seller with 403.
             The role check is done by the RequireRole middleware.
 
-TC-092
+TC-095
   Name    : Body not JSON → 400
   Method  : POST
   URL     : /api/v1/auth/login
@@ -960,7 +986,7 @@ TC-092
   Assert  : HTTP 400
   Purpose : A request body that is not valid JSON must be rejected by json.Decoder.
 
-TC-093
+TC-096
   Name    : Rate limit login (11th) → 429
   Method  : POST (11x)
   URL     : /api/v1/auth/login
@@ -975,26 +1001,26 @@ ORDER FLOW UNDER TEST
 ================================================================================
 
   pending
-    │ checkout valid (TC-060)
+    │ checkout valid (TC-063)
     ▼
-  paid  ◄── NSQ payment pipeline (TC-061)
-    │ update status → processing (TC-066)
+  paid  ◄── NSQ payment pipeline (TC-064)
+    │ update status → processing (TC-069)
     ▼
   processing
-    │ update status → shipping (TC-067)
+    │ update status → shipping (TC-070)
     ▼
   shipping
-    │ update status → shipped (done in TC-083 setup)
+    │ update status → shipped (done in TC-086 setup)
     ▼
   shipped
-    │ review can be created (TC-083)
+    │ review can be created (TC-086)
     ▼
   (completed — not tested, requires buyer confirmation)
 
   Cancel flow:
-    pending → cancel OK (TC-070)
-    shipping → cancel REJECTED (TC-069)
-    cancelled → update status REJECTED (TC-077)
+    pending → cancel OK (TC-073)
+    shipping → cancel REJECTED (TC-072)
+    cancelled → update status REJECTED (TC-080)
 
 ================================================================================
 RATE LIMIT VALIDATION
@@ -1019,8 +1045,8 @@ ENVIRONMENT
   Base URL    : http://localhost:8080  (default, can be overridden via arg)
   Database    : PostgreSQL (must be running before the service starts)
   Cache       : Redis (must be running)
-  Messaging   : NSQ nsqd + nsqlookupd (must be running for TC-061)
-  Payment Svc : go run payment-service/cmd/main.go (must be running for TC-061)
+  Messaging   : NSQ nsqd + nsqlookupd (must be running for TC-064)
+  Payment Svc : go run payment-service/cmd/main.go (must be running for TC-064)
 
   Run: bash qa_test.sh
   Or : bash qa_test.sh http://localhost:9090  (custom base URL)

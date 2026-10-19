@@ -14,6 +14,8 @@ import (
 type StoreService interface {
 	CreateStore(ctx context.Context, userID uuid.UUID, req model.CreateStoreRequest) (*model.StoreResponse, error)
 	GetStoreByID(ctx context.Context, id uuid.UUID) (*model.StoreResponse, error)
+	// GetMyStore returns the store the user owns; "store not found" if they have none yet.
+	GetMyStore(ctx context.Context, userID uuid.UUID) (*model.StoreResponse, error)
 	UpdateStore(ctx context.Context, userID uuid.UUID, id uuid.UUID, req model.UpdateStoreRequest) (*model.StoreResponse, error)
 	UpdateLogo(ctx context.Context, userID uuid.UUID, id uuid.UUID, logoURL string) (*model.StoreResponse, error)
 }
@@ -72,6 +74,16 @@ func (s *storeService) CreateStore(ctx context.Context, userID uuid.UUID, req mo
 
 func (s *storeService) GetStoreByID(ctx context.Context, id uuid.UUID) (*model.StoreResponse, error) {
 	store, err := s.storeRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, errors.New("store not found")
+	}
+
+	resp := store.ToResponse()
+	return &resp, nil
+}
+
+func (s *storeService) GetMyStore(ctx context.Context, userID uuid.UUID) (*model.StoreResponse, error) {
+	store, err := s.storeRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, errors.New("store not found")
 	}

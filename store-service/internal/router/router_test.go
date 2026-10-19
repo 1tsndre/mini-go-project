@@ -46,3 +46,14 @@ func TestRouter_UploadsServeFilesButNotDirectoryListings(t *testing.T) {
 		})
 	}
 }
+
+// "/stores/me" is the current user's store, not a store whose ID is "me".
+func TestRouter_MyStoreIsNotAStoreID(t *testing.T) {
+	h := NewRouter(Handlers{}, nil, nil, t.TempDir(), 1<<20, 5*time.Second, config.RateConfig{})
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/stores/me", nil))
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Contains(t, rec.Body.String(), "missing authorization header")
+}
