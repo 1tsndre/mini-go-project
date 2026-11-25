@@ -124,7 +124,7 @@ API available at `http://localhost:8080`, OpenAPI spec at `http://localhost:8080
 
 ### Run locally
 
-Needs Go 1.25.6+, PostgreSQL 16+, Redis 7+, [NSQ](https://nsq.io/deployment/installing.html) and golang-migrate:
+Needs Go 1.26.11+, PostgreSQL 16+, Redis 7+, [NSQ](https://nsq.io/deployment/installing.html) and golang-migrate:
 
 ```bash
 go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@v4.19.1
